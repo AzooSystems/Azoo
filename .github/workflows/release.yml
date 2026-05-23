@@ -43,7 +43,7 @@ jobs:
           $isPrerelease = -not [string]::IsNullOrWhiteSpace($semver.PreReleaseLabel)
           $prereleaseLabel = $semver.PreReleaseLabel
 
-          $moduleVersion = "$major.$minor.$patch
+          $moduleVersion = "$major.$minor.$patch"
 
           "IS_PRERELEASE=$isPrerelease" | Out-File -FilePath $env:GITHUB_ENV -Append
           "PRERELEASE_LABEL=$prereleaseLabel" | Out-File -FilePath $env:GITHUB_ENV -Append

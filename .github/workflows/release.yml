@@ -98,7 +98,7 @@ jobs:
         run: |
           $secure = ConvertTo-SecureString $env:GITHUB_TOKEN -AsPlainText -Force
 
-          $cred = [System.Management.Automation.PSCredential]::new(
+          $cred = New-Object Microsoft.PowerShell.PSResourceGet.UtilClasses.PSCredentialInfo(
             "AzooSystems",
             $secure
           )

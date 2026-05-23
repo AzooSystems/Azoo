@@ -56,34 +56,18 @@ jobs:
           Copy-Item ./src/Azoo/* ./dist/Azoo -Recurse
 
           $manifestPath = "./dist/Azoo/Azoo.psd1"
-
-          # -----------------------------
-          # Load existing manifest safely
-          # -----------------------------
-          $manifest = Import-PowerShellDataFile $manifestPath
-
-          if (-not $manifest.PrivateData) {
-              $manifest.PrivateData = @{}
-          }
-
-          if (-not $manifest.PrivateData.PSData) {
-              $manifest.PrivateData.PSData = @{}
-          }
           
-          $psdata = $manifest.PrivateData.PSData
-          # Only set prerelease if present in tag
-          if ($pre) {
-              $psdata.Prerelease = $pre
+          $params = @{
+              Path          = $manifestPath
+              ModuleVersion = $moduleVersion
           }
 
-          # Write back merged structure
-          $manifest.PrivateData.PSData = $psdata
+          if ($isPrerelease) {
+              $params.Prerelease = $prereleaseLabel
+          }
 
           # Update module manifest
-          Update-PsModuleManifest `
-            -Path $manifestPath `
-            -ModuleVersion $moduleVersion `
-            -PrivateData $manifest.PrivateData
+          Update-PsModuleManifest @params
 
       - name: Package module (.nupkg)
         shell: pwsh

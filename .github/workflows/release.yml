@@ -112,7 +112,7 @@ jobs:
           )
           
           Publish-PSResource `
-            -Path $env:PACKAGE_PATH `
+            -NupkgPath $env:PACKAGE_PATH `
             -Repository GitHub `
             -Credential $cred
 

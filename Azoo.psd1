@@ -30,7 +30,7 @@ CompanyName = 'Azora Labs'
 Copyright = '(c) jikuja. All rights reserved.'
 
 # Description of the functionality provided by this module
-# Description = ''
+Description = 'Azure related powershell modules'
 
 # Minimum version of the PowerShell engine required by this module
 PowerShellVersion = '5.1'

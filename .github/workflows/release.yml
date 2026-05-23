@@ -98,8 +98,8 @@ jobs:
         run: |
           $secure = ConvertTo-SecureString $env:GITHUB_TOKEN -AsPlainText -Force
 
-          $cred = [pscredential]::new(
-            "x-access-token",
+          $cred = [System.Management.Automation.PSCredential]::new(
+            "AzooSystems",
             $secure
           )
 

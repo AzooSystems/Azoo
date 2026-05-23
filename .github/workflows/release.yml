@@ -89,11 +89,9 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path ./artifacts -Force | Out-Null
-          $packagePath = "./dist/Azoo.nupkg"
-
-          Compress-PSResource `
+          $packagePath = Compress-PSResource -PassThru `
             -Path ./dist/Azoo `
-            -DestinationPath $packagePath
+            -DestinationPath "./artifacts"
 
           echo "PACKAGE_PATH=$packagePath" | Out-File -FilePath $env:GITHUB_ENV -Append
       
@@ -121,8 +119,6 @@ jobs:
 
       - name: Publish to GitHub Packages
         shell: pwsh
-        env:
-          NUGET_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           Publish-PSResource `
             -Path $env:PACKAGE_PATH `

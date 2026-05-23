@@ -94,10 +94,6 @@ jobs:
       - name: Setup repository
         shell: pwsh
         run: |
-          $secure = ConvertTo-SecureString $env:GITHUB_TOKEN -AsPlainText -Force
-
-          
-
           Register-PSResourceRepository `
             -Name "GitHub" `
             -Uri "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" `

@@ -93,25 +93,29 @@ jobs:
 
       - name: Setup repository
         shell: pwsh
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $secure = ConvertTo-SecureString $env:GITHUB_TOKEN -AsPlainText -Force
 
-          $cred = New-Object Microsoft.PowerShell.PSResourceGet.UtilClasses.PSCredentialInfo(
-            "AzooSystems",
-            $secure
-          )
+          
 
           Register-PSResourceRepository `
             -Name "GitHub" `
             -Uri "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" `
-            -Trusted `
-            -Credential $cred
+            -Trusted 
 
       - name: Publish to GitHub Packages
         shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Publish-PSResource and Register-PSResourceRepository uses different credential parameter types
+          $cred = System.Management.Automation.PSCredential]::new(
+            "AzooSystems",
+            $secure
+          )
+          
           Publish-PSResource `
             -Path $env:PACKAGE_PATH `
-            -Repository GitHub
+            -Repository GitHub `
+            -Credential $cred
+

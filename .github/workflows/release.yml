@@ -1,0 +1,63 @@
+name: build-and-publish-module
+
+on:
+  push:
+    tags:
+      - "v**"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Extract version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Build module artifact (staging)
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+
+          # Clean staging folder
+          Remove-Item ./dist -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path ./dist/Azoo -Force | Out-Null
+
+          # Copy source into staging
+          Copy-Item ./src/Azoo/* ./dist/Azoo -Recurse
+
+          # TODO: mark pre-release
+          # Update module version in manifest
+          Update-ModuleManifest `
+            -Path ./dist/Azoo/Azoo.psd1 `
+            -ModuleVersion $version
+
+      - name: Package module (.nupkg)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path ./artifacts -Force | Out-Null
+
+          Compress-PSResource `
+            -Path ./dist/Azoo `
+            -DestinationPath ./artifacts
+      
+      # TODO: add 
+
+      - name: Publish to GitHub Packages
+        shell: pwsh
+        env:
+          NUGET_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $pkg = "./artifacts/Azoo.$version.nupkg"
+
+          Publish-PSResource `
+            -Path $pkg `
+            -Repository GitHub `
+            -Credential (New-Object pscredential "x-access-token", (ConvertTo-SecureString $env:NUGET_TOKEN -AsPlainText -Force))

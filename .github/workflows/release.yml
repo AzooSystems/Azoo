@@ -23,7 +23,30 @@ jobs:
       - name: Build module artifact (staging)
         shell: pwsh
         run: |
-          $version = "${{ steps.version.outputs.version }}"
+          $tag = "${{ github.ref_name }}".TrimStart("v")
+
+          # -----------------------------
+          # Parse SemVer using built-in .NET type (preferred over regex)
+          # -----------------------------
+          try {
+              $semver = [System.Management.Automation.SemanticVersion]::Parse($tag)
+          }
+          catch {
+              throw "Invalid SemVer tag: $tag"
+          }
+
+          $major = $semver.Major
+          $minor = $semver.Minor
+          $patch = $semver.Patch
+
+          # IMPORTANT: store prerelease state
+          $isPrerelease = -not [string]::IsNullOrWhiteSpace($semver.PreReleaseLabel)
+          $prereleaseLabel = $semver.PreReleaseLabel
+
+          $moduleVersion = "$major.$minor.$patch
+
+          "IS_PRERELEASE=$isPrerelease" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PRERELEASE_LABEL=$prereleaseLabel" | Out-File -FilePath $env:GITHUB_ENV -Append
 
           # Clean staging folder
           Remove-Item ./dist -Recurse -Force -ErrorAction SilentlyContinue
@@ -32,32 +55,75 @@ jobs:
           # Copy source into staging
           Copy-Item ./src/Azoo/* ./dist/Azoo -Recurse
 
-          # TODO: mark pre-release
-          # Update module version in manifest
-          Update-ModuleManifest `
-            -Path ./dist/Azoo/Azoo.psd1 `
-            -ModuleVersion $version
+          $manifestPath = "./dist/Azoo/Azoo.psd1"
+
+          # -----------------------------
+          # Load existing manifest safely
+          # -----------------------------
+          $manifest = Import-PowerShellDataFile $manifestPath
+
+          if (-not $manifest.PrivateData) {
+              $manifest.PrivateData = @{}
+          }
+
+          if (-not $manifest.PrivateData.PSData) {
+              $manifest.PrivateData.PSData = @{}
+          }
+          
+          $psdata = $manifest.PrivateData.PSData
+          # Only set prerelease if present in tag
+          if ($pre) {
+              $psdata.Prerelease = $pre
+          }
+
+          # Write back merged structure
+          $manifest.PrivateData.PSData = $psdata
+
+          # Update module manifest
+          Update-PsModuleManifest `
+            -Path $manifestPath `
+            -ModuleVersion $moduleVersion `
+            -PrivateData $manifest.PrivateData
 
       - name: Package module (.nupkg)
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path ./artifacts -Force | Out-Null
+          $packagePath = "./dist/Azoo.nupkg"
 
           Compress-PSResource `
             -Path ./dist/Azoo `
-            -DestinationPath ./artifacts
+            -DestinationPath $packagePath
+
+          echo "PACKAGE_PATH=$packagePath" | Out-File -FilePath $env:GITHUB_ENV -Append
       
-      # TODO: add 
+      - name: Generate artifact attestation (stable only)
+        if: env.IS_PRERELEASE == 'False'
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: ${{ env.PACKAGE_PATH }}
+
+      - name: Setup repository
+        shell: pwsh
+        run: |
+          $secure = ConvertTo-SecureString $env:GITHUB_TOKEN -AsPlainText -Force
+
+          $cred = [pscredential]::new(
+            "x-access-token",
+            $secure
+          )
+
+          Register-PSResourceRepository `
+            -Name "GitHub" `
+            -Uri "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" `
+            -Trusted `
+            -Credential $cred
 
       - name: Publish to GitHub Packages
         shell: pwsh
         env:
           NUGET_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $version = "${{ steps.version.outputs.version }}"
-          $pkg = "./artifacts/Azoo.$version.nupkg"
-
           Publish-PSResource `
-            -Path $pkg `
-            -Repository GitHub `
-            -Credential (New-Object pscredential "x-access-token", (ConvertTo-SecureString $env:NUGET_TOKEN -AsPlainText -Force))
+            -Path $env:PACKAGE_PATH `
+            -Repository GitHub

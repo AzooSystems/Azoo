@@ -129,5 +129,5 @@ jobs:
           Publish-PSResource `
             -NupkgPath $env:PACKAGE_PATH `
             -Repository PSGallery `
-            -ApiKey $`
+            -ApiKey $env:GALLERY_API_KEY`
             -SkipDependenciesCheck

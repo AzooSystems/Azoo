@@ -114,5 +114,20 @@ jobs:
           Publish-PSResource `
             -NupkgPath $env:PACKAGE_PATH `
             -Repository GitHub `
-            -Credential $cred
+            -Credential $cred `
+            -SkipDependenciesCheck
 
+      # TODO: release into Github container registry feed when there is a proper support
+      # * Github nuget feed requires authentication token even when set to public
+      # * PsResourceGet's container registry support is Azure Container Registry
+
+      - name: Publish to PowerShell Gallery
+        shell: pwsh
+        env:
+          GALLERY_API_KEY: ${{ secrets.GALLERY_API_KEY }}
+        run: |
+          Publish-PSResource `
+            -NupkgPath $env:PACKAGE_PATH `
+            -Repository PSGallery `
+            -ApiKey $`
+            -SkipDependenciesCheck

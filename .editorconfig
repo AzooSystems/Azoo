@@ -1,0 +1,13 @@
+root = true
+
+[*.ps1]
+indent_style = space
+indent_size = 4
+
+[*.psm1]
+indent_style = space
+indent_size = 4
+
+[*.psd1]
+indent_style = space
+indent_size = 4

@@ -1,18 +1,23 @@
 function Enable-AzooAzPimRoles {
 [CmdletBinding(SupportsShouldProcess)]
 param (
+    # The justification for activating the role. The justification will be recorded in the audit logs and can be used for reporting and access reviews.
     [Parameter(Mandatory = $True)]
     [String]
     $justification,
+    # The principal ID of the user for whom the role will be activated. If not specified, the currently signed-in user will be used.
     [Parameter()]
     [String]
     $principalId = (Get-AzADUser -SignedIn).Id,
+    # The duration for which the role will be activated. The default is 30 minutes. The value should be in ISO 8601 duration format (e.g., "PT1H" for 1 hour).
     [Parameter()]
     [String]
     $expirationDuration = "PT30M",
+    # A filter scriptblock to apply to the eligible Azure RBAC roles.
     [Parameter()]
     [Scriptblock]
     $filter,
+    # If specified Cmdlet will skill interactive selections with Out-GridView or Out-ConsoleGridView and select all roles that match the filter. If not specified, the user will be prompted to select which eligible roles to activate.
     [Parameter()]
     [Switch]
     $disableInteraction,

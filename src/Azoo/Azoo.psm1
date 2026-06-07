@@ -6,5 +6,5 @@ Get-ChildItem -Recurse "$PSScriptRoot/private/*.ps1" |
 
 Export-ModuleMember -Function (
     Get-ChildItem -Recurse "$PSScriptRoot/public/*.ps1" |
-    ForEach-Object BaseName
+        ForEach-Object BaseName
 )

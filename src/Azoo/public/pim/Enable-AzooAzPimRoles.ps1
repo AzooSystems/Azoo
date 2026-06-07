@@ -65,7 +65,7 @@ param (
       LinkedRoleEligibilityScheduleId =  $originalEligibleAzureRbac.RoleEligibilityScheduleId
       PrincipalId = $principalId
       RequestType = "SelfActivate"
-      ExpirationDuration = "PT8H"
+      ExpirationDuration = $expirationDuration
       ExpirationType = "AfterDuration"
       RoleDefinitionId = $originalEligibleAzureRbac.RoleDefinitionId
     }

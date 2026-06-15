@@ -34,9 +34,9 @@ param (
 
   if (-not $disableInteraction -and $PSVersionTable.PSEdition -eq "Desktop") {
     Write-Host "Displaying Out-GridView for manual selection"
-    $selectedAzureRbac = $filteredAzureRbac | Out-GridView -PassThru
+    $selectedAzureRbac = $filteredAzureRbac | Select-Object MemberType, PrincipalType, ScopeDisplayName, PrincipalDisplayName, RoleDefinitionDisplayName, id | Out-GridView -PassThru
   } elseif (-not $disableInteraction) {
-    $selectedAzureRbac = $filteredAzureRbac | Select-Object MemberType, PrincipalType, ScopeDisplayName, PrincipalDisplayName, RoleDefinitionDisplayName,id  | Out-ConsoleGridview -Title "Roles to select"
+    $selectedAzureRbac = $filteredAzureRbac | Select-Object MemberType, PrincipalType, ScopeDisplayName, PrincipalDisplayName, RoleDefinitionDisplayName, id  | Out-ConsoleGridview -Title "Roles to select"
   } else {
     $selectedAzureRbac = $filteredAzureRbac
   }

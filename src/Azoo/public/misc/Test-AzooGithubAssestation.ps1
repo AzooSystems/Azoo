@@ -1,17 +1,30 @@
 
 function Test-AzooGithubAssestation {
-    [CmdletBinding()]
-    param (
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
         [Parameter(Mandatory)]
-        $Path,
+        [ValidateNotNullOrEmpty()]
+        [string]$Path,
+
         [Parameter(Mandatory)]
-        $OrgAndRepository
+        [ValidateNotNullOrEmpty()]
+        [string]$OrgAndRepository
     )
 
-    $file_sum = Get-FileSha256  -Path $Path
-    $url = "https://api.github.com/repos/${OrgAndRepository}/attestations/sha256:${file_sum}"
-    $attest_json = (Invoke-RestMethod -Method Get -Uri $url).attestations[0].bundle
-    $attest_json | ConvertTo-Json -depth 99 | Set-Content -Force -Path "${Path}.json"
+    $fileSum = Get-FileSha256 -Path $Path
+    $url = "https://api.github.com/repos/$OrgAndRepository/attestations/sha256:$fileSum"
+    $jsonPath = "${Path}.json"
 
-    gh attestation verify -R "AzooSystems/Azoo" $Path -b  "${Path}.json"
+    if ($PSCmdlet.ShouldProcess($Path, "Verify GitHub attestation and write bundle to '$jsonPath'")) {
+        $response = Invoke-RestMethod -Method Get -Uri $url -ErrorAction Stop
+        $bundle = $response.attestations[0].bundle
+        if (-not $bundle) {
+            throw "No attestation bundle found for sha256:$fileSum in repo '$OrgAndRepository'."
+        }
+
+        $json = $bundle | ConvertTo-Json -Depth 99
+        [System.IO.File]::WriteAllText($jsonPath, $json, [System.Text.UTF8Encoding]::new($false))
+
+        gh attestation verify -R $OrgAndRepository $Path -b $jsonPath
+    }
 }

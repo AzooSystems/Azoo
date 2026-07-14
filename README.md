@@ -69,7 +69,7 @@ if ($f.Count -ne 1) { Write-Error "Error" }
 $file_sum = Get-FileSha256  -Path $f.Name
 $url = "https://api.github.com/repos/AzooSystems/Azoo/attestations/sha256:${file_sum}"
 $attest_json = (Invoke-RestMethod -Method Get -Uri $url).attestations[0].bundle
-$attest_json | ConvertTo-Json -depth 99 | Set-Content -path "$($f.name).json"
+$attest_json | ConvertTo-Json -Depth 99 | Set-Content -Path "$($f.Name).json" -Encoding utf8
 
 gh attestation verify -R "AzooSystems/Azoo" "$($f.name)" -b  "$($f.name).json" "--format=json"
 ```

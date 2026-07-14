@@ -87,7 +87,7 @@ jobs:
       
       - name: Generate artifact attestation (stable only)
         if: env.IS_PRERELEASE == 'False'
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
         with:
           subject-path: ${{ env.PACKAGE_PATH }}
 

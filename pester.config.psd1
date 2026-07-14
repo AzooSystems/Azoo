@@ -10,6 +10,6 @@
     }
     CodeCoverage = @{
         Enable = $true
-        Path = 'src\Azoo'
+        Path = 'src/Azoo'
     }
 }

@@ -13,7 +13,12 @@ function Get-AzooPropertyOrder {
     .EXAMPLE
     $data | Select-Object resourceGroup, name, id | Set-AzooPropertyOrder -Tag "foo" | Format-MarkdownTableTableStyle -Property (Get-AzooPropertyOrder -Tag "foo")
     #>
-    param([string]$Tag)
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Tag
+    )
 
     $script:PropertyOrders[$Tag]
 }

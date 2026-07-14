@@ -22,9 +22,9 @@ List available versions:
 Find-PSResource -Name Azoo -Version * | Select-Object Version, Prerelease, PublishedDate, UpdatedDate
 ```
 
-Select the version you want to install. Because PowerShell ecosystem does offer any SCM security at least do following:
+Select the version you want to install. Because the PowerShell ecosystem does not offer any SCM security, at minimum do the following:
 
-* check the release dates. Is to too new?
+* check the release dates. Is it too new?
 * then select the version you want to install
 
 Download .nupkg:

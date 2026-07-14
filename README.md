@@ -4,7 +4,7 @@
 
 ### Regular installation
 
-Please don't use!:
+Deprecated (prefer "Modern installation" below):
 
 ```powershell
 Install-Module Azoo -AllowPrerelease -Force

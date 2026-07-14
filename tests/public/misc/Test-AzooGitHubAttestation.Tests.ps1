@@ -1,4 +1,4 @@
-Describe 'Test-AzooGithubAssestation' -Tag 'E2E' {
+Describe 'Test-AzooGitHubAttestation' -Tag 'E2E' {
     BeforeAll {
         $script:SkipE2E = $false
         $script:SkipReason = $null
@@ -44,7 +44,7 @@ Describe 'Test-AzooGithubAssestation' -Tag 'E2E' {
             return
         }
 
-        Test-AzooGithubAssestation -Path $script:PackagePath -OrgAndRepository $script:OrgAndRepository
+        Test-AzooGitHubAttestation -Path $script:PackagePath -OrgAndRepository $script:OrgAndRepository
 
         $LASTEXITCODE | Should -Be 0
         (Test-Path -Path $script:PackagePath) | Should -BeTrue

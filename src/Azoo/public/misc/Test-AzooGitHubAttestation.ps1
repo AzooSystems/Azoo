@@ -1,5 +1,5 @@
 
-function Test-AzooGithubAssestation {
+function Test-AzooGitHubAttestation {
     [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)]

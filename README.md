@@ -34,10 +34,10 @@ Save-PSResource -AsNupkg -Name Azoo -Version <version> -SkipDependencyCheck
 $f = Get-ChildItem -Filter "Azoo*.nupkg" ; $f
 ```
 
-Check the Github attestation if using release version:
+Check the GitHub attestation if using release version:
 
 ```powershell
-Test-AzooGithubAssestation -OrgAndRepository "AzooSystems/Azoo" -Path ./Azoo.0.0.1.nupkg
+Test-AzooGitHubAttestation -OrgAndRepository "AzooSystems/Azoo" -Path ./Azoo.0.0.1.nupkg
 ```
 
 or not already using the module

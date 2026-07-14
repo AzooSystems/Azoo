@@ -30,7 +30,18 @@ This repository contains a script-based PowerShell module for Azure administrati
 
 ## Validation And Release
 
-- There is no dedicated unit test suite in this repo yet.
+- Tests are implemented with Pester (v6 in local dev at time of writing).
+- Test discovery is configured in `pester.config.psd1` with `TestSuite.Path = tests`.
+- Keep test files under `tests/`, mirroring source intent:
+  - Public command tests: `tests/public/<category>/<Command>.Tests.ps1`
+  - Private helper tests: `tests/private/<Helper>.Tests.ps1`
+- Use test tags intentionally:
+  - `E2E` for network/CLI/external dependency tests.
+  - Omit `E2E` for deterministic local unit tests.
+- Useful test runs:
+  - `pwsh -NoProfile -Command "Invoke-Pester -Path ./tests -Output Detailed"`
+  - `pwsh -NoProfile -Command "Invoke-Pester -Path ./tests -TagFilter E2E -Output Detailed"`
+- For deterministic algorithm tests (for example hashing), prefer well-known vectors and document the vector source URLs in test comments.
 - Run static checks when available:
   - VS Code task: PSRule: Run analysis
 - Release is tag-driven via GitHub Actions:
@@ -54,5 +65,7 @@ This repository contains a script-based PowerShell module for Azure administrati
 
 - Confirm function file placement and naming match existing patterns.
 - If a public command is added, ensure its basename matches the exported function name.
+- Add or update tests under `tests/` for changed behavior.
+- If tests rely on network or external tools, tag them `E2E` and keep a skip path with a clear reason.
 - Avoid changing release semantics unless explicitly requested.
 - Keep edits minimal and scoped; do not refactor unrelated files.

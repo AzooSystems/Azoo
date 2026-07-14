@@ -1,3 +1,5 @@
+$script:PropertyOrders = @{}
+
 Get-ChildItem -Recurse "$PSScriptRoot/public/*.ps1" |
     ForEach-Object { . $_.FullName }
 

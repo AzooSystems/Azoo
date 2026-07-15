@@ -26,13 +26,7 @@ function Remove-AzooAzConsumptionBudget {
     )
 
     process {
-        $normalizedResourceId = $ResourceId.Trim()
-        if (-not $normalizedResourceId.StartsWith('/')) {
-            $normalizedResourceId = "/$normalizedResourceId"
-        }
-        if ($normalizedResourceId.Length -gt 1 -and $normalizedResourceId.EndsWith('/')) {
-            $normalizedResourceId = $normalizedResourceId.TrimEnd('/')
-        }
+        $normalizedResourceId = Normalize-AzooScopeId -Value $ResourceId
 
         if ($normalizedResourceId -notmatch '/providers/Microsoft\.Consumption/budgets/[^/]+$') {
             throw "ResourceId must reference a Microsoft.Consumption budget resource: $normalizedResourceId"

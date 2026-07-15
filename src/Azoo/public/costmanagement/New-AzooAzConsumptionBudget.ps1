@@ -6,6 +6,10 @@ Creates or updates an Azure consumption budget at a scope.
 Creates or updates Microsoft.Consumption budget resources by calling ARM REST endpoints
 with Invoke-AzRestMethod. This command supports WhatIf and Confirm.
 
+Payload schema documentation: https://learn.microsoft.com/en-us/rest/api/cost-management/budgets/create-or-update?view=rest-cost-management-2025-03-01&tabs=HTTP#budget
+
+Note that some of the properties in the schema are read-only and will be ignored by ARM when creating or updating a budget. For example, currentSpend and forecastSpend are read-only properties that are calculated by the service and cannot be set by the user.
+
 .PARAMETER ScopeId
 Enclosing scope resource ID where the budget is created.
 

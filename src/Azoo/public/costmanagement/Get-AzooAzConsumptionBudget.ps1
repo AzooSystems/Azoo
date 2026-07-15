@@ -49,7 +49,8 @@ Gets budget named monthly-budget from all discovered scopes.
 $budgets = Get-AzooAzConsumptionBudget
 $null = $budgets | Expand-ObjectProperty -propertyName properties
 $null = $budgets | Expand-ObjectProperty -propertyName timePeriod
-$budgets | Select-Object id, category, amount, currentSpend, forecastSpend, startDate, endDate | Out-HtmlView -DefaultSortColumn endDate -PrettifyObject
+$budgets | Select-Object id, scopeDisplayName, category, amount, currentSpend, forecastSpend, startDate, endDate `
+| Out-HtmlView -DefaultSortColumn endDate -PrettifyObject -PagingLength 25
 
 Gets all budgets from all discovered scopes, expands the properties and timePeriod objects, and outputs a table view of selected budget properties.
 #>
@@ -79,7 +80,8 @@ function Get-AzooAzConsumptionBudget {
         'MultipleScopes' { @($ScopeIds) }
         default {
             Write-Verbose 'Fetching Azure resource scopes via Get-AzooAzScopes.'
-            $resourceScopes = @(Get-AzooAzScopes | Select-Object -ExpandProperty id)
+            $resourceScopeObjects = @(Get-AzooAzScopes)
+            $resourceScopes = @($resourceScopeObjects | Select-Object -ExpandProperty id)
             Write-Verbose "Fetched $($resourceScopes.Count) resource scope(s)."
 
             Write-Verbose 'Fetching Azure billing scopes via Get-AzooAzBillingScopes (this may take a while).'
@@ -126,6 +128,7 @@ function Get-AzooAzConsumptionBudget {
             $billingScopes = @($billingScopeObjects | Select-Object -ExpandProperty id)
             Write-Verbose "Fetched $($billingScopes.Count) billing scope(s)."
 
+            $scopeObjects = @($resourceScopeObjects + $billingScopeObjects)
             @($resourceScopes + $billingScopes)
         }
     }
@@ -171,7 +174,27 @@ function Get-AzooAzConsumptionBudget {
     foreach ($item in $batchResult) {
         $scope = $requestScopeMap[$item.RequestName]
         if (-not $scope) {
-            throw "Unable to map Microsoft.Consumption response to scope. RequestName: '$($item.RequestName)'."
+            Write-Warning "Unable to map Microsoft.Consumption response to scope. RequestName: '$($item.RequestName)'."
+        }
+
+        if ($PSCmdlet.ParameterSetName -eq 'AutoScopes') {
+            $scopeObject = $scopeObjects | Where-Object { $_.id -eq $scope }
+            $scopeDisplayName = if ($scopeObject) {
+                switch ($scopeObject.ScopeType) {
+                    'ManagementGroup' { $scopeObject.displayName }
+                    'Subscription' { $scopeObject.subscriptionName }
+                    'ResourceGroup' { $scopeObject.subscriptionName }
+                    # 
+                    'BillingAccount' { $scopeObject.properties.displayName }
+                    'BillingProfile' { $scopeObject.properties.displayName }
+                    'InvoiceSection' { $scopeObject.properties.displayName }
+                    'Customer' { Write-Warning "TODO: check" ; $scopeObject.properties.displayName }
+                    default { Write-Warning "Unknown scope type: $($scopeObject.ScopeType)"; "--" }
+                }
+            } else {
+                Write-Warning "Unable to find scope object for scope '$scope'. Cannot determine subscription name."
+                "unknown"
+            }
         }
 
         [pscustomobject]@{
@@ -181,6 +204,8 @@ function Get-AzooAzConsumptionBudget {
             type = $item.type
             eTag = $item.eTag
             properties = $item.properties
+            scopeDisplayName = $scopeDisplayName
+            scopeType = if ($scopeObject) { $scopeObject.ScopeType } else { "unknown" }
         }
     }
 }

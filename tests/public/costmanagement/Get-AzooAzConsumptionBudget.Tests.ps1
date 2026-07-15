@@ -6,39 +6,53 @@ Describe 'Get-AzooAzConsumptionBudget' {
         Import-Module $manifestPath -Force
     }
 
-    It 'gets budgets by a single scope and handles continuation links' {
-        $script:paths = @()
-        Mock -CommandName Invoke-AzRestMethod -ModuleName Azoo -MockWith {
+    It 'gets budgets by a single scope via ARM batch requests' {
+        $script:batchUrls = @()
+        $script:batchInvocations = 0
+
+        Mock -CommandName New-AzureBatchRequest -ModuleName Azoo -MockWith {
             param(
                 [string]$Method,
-                [string]$Path
+                [string[]]$Url,
+                [string]$Name
             )
 
-            $script:paths += $Path
-            switch -Regex ($Path) {
-                '^/subscriptions/sub-a/providers/Microsoft\.Consumption/budgets\?api-version=2023-03-01$' {
-                    return [pscustomobject]@{
-                        StatusCode = 200
-                        Content = '{"value":[{"id":"/subscriptions/sub-a/providers/Microsoft.Consumption/budgets/b1","name":"b1","type":"Microsoft.Consumption/budgets","properties":{"category":"Cost"}}],"nextLink":"https://management.azure.com/subscriptions/sub-a/providers/Microsoft.Consumption/budgets?page=2&api-version=2023-03-01"}'
-                    }
-                }
-                '^https://management\.azure\.com/subscriptions/sub-a/providers/Microsoft\.Consumption/budgets\?page=2&api-version=2023-03-01$' {
-                    return [pscustomobject]@{
-                        StatusCode = 200
-                        Content = '{"value":[{"id":"/subscriptions/sub-a/providers/Microsoft.Consumption/budgets/b2","name":"b2","type":"Microsoft.Consumption/budgets","properties":{"category":"Cost"}}]}'
-                    }
-                }
-                default {
-                    throw "Unexpected path: $Path"
-                }
+            $script:batchUrls += $Url
+            [pscustomobject]@{
+                Name = $Name
+                HttpMethod = $Method
+                Url = $Url[0]
             }
+        }
+
+        Mock -CommandName Invoke-AzureBatchRequest -ModuleName Azoo -MockWith {
+            param([object[]]$BatchRequest)
+            $script:batchInvocations++
+
+            @(
+                [pscustomobject]@{
+                    RequestName = 'scope_0'
+                    id = '/subscriptions/sub-a/providers/Microsoft.Consumption/budgets/b1'
+                    name = 'b1'
+                    type = 'Microsoft.Consumption/budgets'
+                    properties = @{ category = 'Cost' }
+                }
+                [pscustomobject]@{
+                    RequestName = 'scope_0'
+                    id = '/subscriptions/sub-a/providers/Microsoft.Consumption/budgets/b2'
+                    name = 'b2'
+                    type = 'Microsoft.Consumption/budgets'
+                    properties = @{ category = 'Cost' }
+                }
+            )
         }
 
         $result = @(Get-AzooAzConsumptionBudget -ScopeId '/subscriptions/sub-a')
 
         $result.Count | Should -Be 2
         @($result.name) | Should -Be @('b1', 'b2')
-        @($script:paths | Where-Object { $_ -match 'page=2' }).Count | Should -Be 1
+        $script:batchInvocations | Should -Be 1
+        $script:batchUrls[0] | Should -Be '/subscriptions/sub-a/providers/Microsoft.Consumption/budgets?api-version=2023-03-01'
     }
 
     It 'gets budgets from discovered scopes by default' {
@@ -51,51 +65,161 @@ Describe 'Get-AzooAzConsumptionBudget' {
 
         Mock -CommandName Get-AzooAzBillingScopes -ModuleName Azoo -MockWith {
             @(
-                [pscustomobject]@{ id = '/providers/Microsoft.Billing/billingAccounts/ba1' }
+                [pscustomobject]@{
+                    id = '/providers/Microsoft.Billing/billingAccounts/ba1'
+                    type = 'Microsoft.Billing/billingAccounts'
+                    properties = [pscustomobject]@{ agreementType = 'MicrosoftOnlineServicesProgram' }
+                }
+                [pscustomobject]@{
+                    id = '/providers/Microsoft.Billing/billingAccounts/ba2'
+                    type = 'Microsoft.Billing/billingAccounts'
+                    properties = [pscustomobject]@{ agreementType = 'EnterpriseAgreement' }
+                }
             )
         }
 
-        $script:paths = @()
-        Mock -CommandName Invoke-AzRestMethod -ModuleName Azoo -MockWith {
+        $script:batchUrls = @()
+        Mock -CommandName New-AzureBatchRequest -ModuleName Azoo -MockWith {
             param(
                 [string]$Method,
-                [string]$Path
+                [string[]]$Url,
+                [string]$Name
             )
 
-            $script:paths += $Path
+            $script:batchUrls += $Url
             [pscustomobject]@{
-                StatusCode = 200
-                Content = '{"value":[]}'
+                Name = $Name
+                HttpMethod = $Method
+                Url = $Url[0]
             }
         }
 
-        $null = @(Get-AzooAzConsumptionBudget)
+        Mock -CommandName Invoke-AzureBatchRequest -ModuleName Azoo -MockWith { @() }
 
-        $script:paths.Count | Should -Be 3
-        @($script:paths | Where-Object { $_ -match '^/subscriptions/sub-a/providers/Microsoft\.Consumption/budgets\?api-version=2023-03-01$' }).Count | Should -Be 1
-        @($script:paths | Where-Object { $_ -match '^/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft\.Consumption/budgets\?api-version=2023-03-01$' }).Count | Should -Be 1
-        @($script:paths | Where-Object { $_ -match '^/providers/Microsoft\.Billing/billingAccounts/ba1/providers/Microsoft\.Consumption/budgets\?api-version=2023-03-01$' }).Count | Should -Be 1
+        $warnings = @(
+            Get-AzooAzConsumptionBudget 3>&1 |
+                Where-Object { $_ -is [System.Management.Automation.WarningRecord] }
+        )
+
+        $script:batchUrls.Count | Should -Be 3
+        @($script:batchUrls | Where-Object { $_ -match '^/subscriptions/sub-a/providers/Microsoft\.Consumption/budgets\?api-version=2023-03-01$' }).Count | Should -Be 1
+        @($script:batchUrls | Where-Object { $_ -match '^/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft\.Consumption/budgets\?api-version=2023-03-01$' }).Count | Should -Be 1
+        @($script:batchUrls | Where-Object { $_ -match '^/providers/Microsoft\.Billing/billingAccounts/ba1/providers/Microsoft\.Consumption/budgets\?api-version=2023-03-01$' }).Count | Should -Be 0
+        @($script:batchUrls | Where-Object { $_ -match '^/providers/Microsoft\.Billing/billingAccounts/ba2/providers/Microsoft\.Consumption/budgets\?api-version=2023-03-01$' }).Count | Should -Be 1
+        $warnings.Count | Should -Be 1
+        $warnings[0].Message | Should -Match 'MicrosoftOnlineServicesProgram agreement types do not support budgets'
+        $warnings[0].Message | Should -Match '/providers/Microsoft.Billing/billingAccounts/ba1'
+    }
+
+    It 'includes filtered billing scopes when DisableFilter is used' {
+        Mock -CommandName Get-AzooAzScopes -ModuleName Azoo -MockWith {
+            @(
+                [pscustomobject]@{ id = '/subscriptions/sub-a' }
+            )
+        }
+
+        Mock -CommandName Get-AzooAzBillingScopes -ModuleName Azoo -MockWith {
+            @(
+                [pscustomobject]@{
+                    id = '/providers/Microsoft.Billing/billingAccounts/ba1'
+                    type = 'Microsoft.Billing/billingAccounts'
+                    properties = [pscustomobject]@{ agreementType = 'MicrosoftOnlineServicesProgram' }
+                }
+            )
+        }
+
+        $script:batchUrls = @()
+        Mock -CommandName New-AzureBatchRequest -ModuleName Azoo -MockWith {
+            param(
+                [string]$Method,
+                [string[]]$Url,
+                [string]$Name
+            )
+
+            $script:batchUrls += $Url
+            [pscustomobject]@{
+                Name = $Name
+                HttpMethod = $Method
+                Url = $Url[0]
+            }
+        }
+
+        Mock -CommandName Invoke-AzureBatchRequest -ModuleName Azoo -MockWith { @() }
+
+        $warnings = @(
+            Get-AzooAzConsumptionBudget -DisableFilter 3>&1 |
+                Where-Object { $_ -is [System.Management.Automation.WarningRecord] }
+        )
+
+        @($script:batchUrls | Where-Object { $_ -match '^/providers/Microsoft\.Billing/billingAccounts/ba1/providers/Microsoft\.Consumption/budgets\?api-version=2023-03-01$' }).Count | Should -Be 1
+        $warnings.Count | Should -Be 0
     }
 
     It 'gets a single budget name per scope' {
-        $script:paths = @()
-        Mock -CommandName Invoke-AzRestMethod -ModuleName Azoo -MockWith {
+        $script:batchUrls = @()
+        Mock -CommandName New-AzureBatchRequest -ModuleName Azoo -MockWith {
             param(
                 [string]$Method,
-                [string]$Path
+                [string[]]$Url,
+                [string]$Name
             )
 
-            $script:paths += $Path
+            $script:batchUrls += $Url
             [pscustomobject]@{
-                StatusCode = 200
-                Content = '{"id":"/subscriptions/sub-a/providers/Microsoft.Consumption/budgets/monthly","name":"monthly","type":"Microsoft.Consumption/budgets","properties":{"category":"Cost"}}'
+                Name = $Name
+                HttpMethod = $Method
+                Url = $Url[0]
             }
+        }
+
+        Mock -CommandName Invoke-AzureBatchRequest -ModuleName Azoo -MockWith {
+            @(
+                [pscustomobject]@{
+                    RequestName = 'scope_0'
+                    id = '/subscriptions/sub-a/providers/Microsoft.Consumption/budgets/monthly'
+                    name = 'monthly'
+                    type = 'Microsoft.Consumption/budgets'
+                    properties = @{ category = 'Cost' }
+                }
+            )
         }
 
         $result = @(Get-AzooAzConsumptionBudget -ScopeId '/subscriptions/sub-a' -Name 'monthly')
 
         $result.Count | Should -Be 1
         $result[0].name | Should -Be 'monthly'
-        $script:paths[0] | Should -Be '/subscriptions/sub-a/providers/Microsoft.Consumption/budgets/monthly?api-version=2023-03-01'
+        $script:batchUrls[0] | Should -Be '/subscriptions/sub-a/providers/Microsoft.Consumption/budgets/monthly?api-version=2023-03-01'
+    }
+
+    It 'throws when ARM batch response cannot be mapped back to scope' {
+        Mock -CommandName New-AzureBatchRequest -ModuleName Azoo -MockWith {
+            param(
+                [string]$Method,
+                [string[]]$Url,
+                [string]$Name
+            )
+
+            [pscustomobject]@{
+                Name = $Name
+                HttpMethod = $Method
+                Url = $Url[0]
+            }
+        }
+
+        Mock -CommandName Invoke-AzureBatchRequest -ModuleName Azoo -MockWith {
+            @(
+                [pscustomobject]@{
+                    RequestName = 'unknown_scope'
+                    id = '/subscriptions/sub-a/providers/Microsoft.Consumption/budgets/monthly'
+                    name = 'monthly'
+                    type = 'Microsoft.Consumption/budgets'
+                    properties = @{ category = 'Cost' }
+                }
+            )
+        }
+
+        {
+            $null = @(Get-AzooAzConsumptionBudget -ScopeId '/subscriptions/sub-a' -Name 'monthly')
+        } | Should -Throw -ExpectedMessage "*Unable to map Microsoft.Consumption response to scope*"
     }
 }

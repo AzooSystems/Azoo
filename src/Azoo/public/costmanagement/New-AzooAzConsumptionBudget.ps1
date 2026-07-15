@@ -57,13 +57,7 @@ function New-AzooAzConsumptionBudget {
         [object]$Tags
     )
 
-    $normalizedScope = $ScopeId.Trim()
-    if (-not $normalizedScope.StartsWith('/')) {
-        $normalizedScope = "/$normalizedScope"
-    }
-    if ($normalizedScope.Length -gt 1 -and $normalizedScope.EndsWith('/')) {
-        $normalizedScope = $normalizedScope.TrimEnd('/')
-    }
+    $normalizedScope = Normalize-AzooScopeId -Value $ScopeId
 
     $apiVersion = '2023-03-01'
     $resourceId = "$normalizedScope/providers/Microsoft.Consumption/budgets/$Name"

@@ -98,7 +98,7 @@ function Get-AzooAzBillingScopes {
                 displayName = $_.properties.displayName
                 type = $_.type
                 billingAccountName = $_.name
-                billingProfileName = $null
+                properties = $_.properties
             }
         }
     }
@@ -119,6 +119,7 @@ function Get-AzooAzBillingScopes {
                         type = $_.type
                         billingAccountName = $accountName
                         billingProfileName = $_.name
+                        properties = $_.properties
                     }
                 }
             }
@@ -137,6 +138,7 @@ function Get-AzooAzBillingScopes {
                             type = $_.type
                             billingAccountName = $accountName
                             billingProfileName = $profileName
+                            properties = $_.properties
                         }
                     }
                 }
@@ -154,6 +156,7 @@ function Get-AzooAzBillingScopes {
                     type = $_.type
                     billingAccountName = $accountName
                     billingProfileName = $null
+                    properties = $_.properties
                 }
             }
         }

@@ -64,7 +64,7 @@ function Get-AzooAzBillingScopes {
                 throw "Microsoft.Billing request failed with status code $($response.StatusCode): $nextUri"
             }
 
-            $payload = $response.Content | ConvertFrom-Json -Depth 100
+            $payload = $response.Content | ConvertFrom-Json
             if ($payload.value) {
                 $items += @($payload.value)
             }

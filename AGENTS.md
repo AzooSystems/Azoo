@@ -54,6 +54,7 @@ This repository contains a script-based PowerShell module for Azure administrati
 ## Environment Notes
 
 - Manifest targets PowerShell 5.1 minimum.
+  - ConvertFrom-Json should not include -Depth parameter to main compatibility
 - Some commands require Azure context and Az modules (for example, Get-AzADUser and role scheduling cmdlets).
 - Some interactive flows use Out-GridView (Desktop) or Out-ConsoleGridView (Core).
 

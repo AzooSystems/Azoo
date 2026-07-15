@@ -80,7 +80,7 @@ function New-AzooAzConsumptionBudget {
         }
 
         if ($response.Content) {
-            $response.Content | ConvertFrom-Json -Depth 100
+            $response.Content | ConvertFrom-Json
         }
     }
 }

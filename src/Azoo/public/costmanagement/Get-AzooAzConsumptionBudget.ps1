@@ -244,6 +244,18 @@ function Get-AzooAzConsumptionBudget {
         $batchResult = @(Invoke-AzureBatchRequest -BatchRequest $batchRequests)
         Write-Verbose "Received $($batchResult.Count) response item(s) from ARM batch request."
 
+        $scopeObjectMap = if ($scopeObjects) {
+            $map = @{}
+            foreach ($obj in @($scopeObjects)) {
+                if ($obj.id) {
+                    $map[$obj.id] = $obj
+                }
+            }
+            $map
+        } else {
+            $null
+        }
+
         foreach ($item in $batchResult) {
             $scope = $requestScopeMap[$item.RequestName]
             if (-not $scope) {
@@ -253,8 +265,8 @@ function Get-AzooAzConsumptionBudget {
             $scopeObject = $null
             $scopeDisplayName = $null
 
-            if ($scopeObjects) {
-                $scopeObject = $scopeObjects | Where-Object { $_.id -eq $scope }
+            if ($scopeObjectMap -and $scope) {
+                $scopeObject = $scopeObjectMap[$scope]
                 $scopeDisplayName = if ($scopeObject) {
                     $scopeObject.scopeDisplayName
                 } else {

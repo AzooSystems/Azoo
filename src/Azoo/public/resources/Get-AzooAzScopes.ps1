@@ -52,30 +52,6 @@ function Get-AzooAzScopes {
         [scriptblock]$FilterScript
     )
 
-    function Invoke-PagedAzGraphQuery {
-        param(
-            [Parameter(Mandatory)]
-            [string]$Query
-        )
-
-        $page = Search-AzGraph -First $First -Query $Query
-        $results = @()
-
-        if ($null -ne $page.Data) {
-            $results += @($page.Data)
-        }
-
-        while ($page.SkipToken) {
-            Write-Verbose "Received skip token: $($page.SkipToken)"
-            $page = Search-AzGraph -First $First -Query $Query -SkipToken $page.SkipToken
-            if ($null -ne $page.Data) {
-                $results += @($page.Data)
-            }
-        }
-
-        $results
-    }
-
     $hasScopeSwitch = @('ManagementGroup', 'Subscription', 'ResourceGroup', 'Resource').
         Where({ $PSBoundParameters.ContainsKey($_) }).
         Count -gt 0
@@ -119,7 +95,7 @@ ResourceContainers
 | project ScopeType, id, name, type, subscriptionId, tenantId, displayName = properties.displayName, subscriptionName, properties, location
 "@
 
-        $scopes += Invoke-PagedAzGraphQuery -Query $containerQuery
+        $scopes += Invoke-AzooAzPagedQuery -Query $containerQuery -First $First
     }
 
     if ($fetchResources) {
@@ -132,7 +108,7 @@ Resources
 ) on $left.subscriptionId == $right.subscriptionId
 | project ScopeType = 'Resource', id, name, type, subscriptionId, resourceGroup, location, subscriptionName
 '@
-        $scopes += Invoke-PagedAzGraphQuery -Query $resourceQuery
+        $scopes += Invoke-AzooAzPagedQuery -Query $resourceQuery -First $First
     }
 
     if ($FilterScript) {

@@ -28,7 +28,6 @@ This repository contains a script-based PowerShell module for Azure administrati
 - Use explicit parameter validation where it improves safety (Mandatory, ValidateSet, ParameterSetName).
 - Ensure every new command-line parameter is documented in comment-based help (`.PARAMETER`).
 - Keep private helper utilities under src/Azoo/private/.
-- Document function parameters
 - For commands that operate on multiple scopes, default to using `Get-AzooAzScopes` and `Get-AzooAzBillingScopes` as input sources unless explicitly overridden.
 - For commands that operate on multiple scopes, explicitly decide whether to use `New-AzureBatchRequest` and `Invoke-AzureBatchRequest`; if unclear from requirements, ask the user before implementation.
 

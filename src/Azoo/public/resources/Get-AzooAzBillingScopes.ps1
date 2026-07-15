@@ -92,13 +92,14 @@ function Get-AzooAzBillingScopes {
     if ($fetchBillingAccounts) {
         $scopes += $billingAccounts | ForEach-Object {
             [pscustomobject]@{
-                ScopeType = 'BillingAccount'
-                id = $_.id
-                name = $_.name
-                displayName = $_.properties.displayName
-                type = $_.type
+                ScopeType          = 'BillingAccount'
+                id                 = $_.id
+                name               = $_.name
+                displayName        = $_.properties.displayName
+                scopeDisplayName   = $_.properties.displayName
+                type               = $_.type
                 billingAccountName = $_.name
-                properties = $_.properties
+                properties         = $_.properties
             }
         }
     }
@@ -112,14 +113,15 @@ function Get-AzooAzBillingScopes {
             if ($fetchBillingProfiles) {
                 $scopes += $profiles | ForEach-Object {
                     [pscustomobject]@{
-                        ScopeType = 'BillingProfile'
-                        id = $_.id
-                        name = $_.name
-                        displayName = $_.properties.displayName
-                        type = $_.type
+                        ScopeType          = 'BillingProfile'
+                        id                 = $_.id
+                        name               = $_.name
+                        displayName        = $_.properties.displayName
+                        scopeDisplayName   = $_.properties.displayName
+                        type               = $_.type
                         billingAccountName = $accountName
                         billingProfileName = $_.name
-                        properties = $_.properties
+                        properties         = $_.properties
                     }
                 }
             }
@@ -131,14 +133,15 @@ function Get-AzooAzBillingScopes {
 
                     $scopes += $sections | ForEach-Object {
                         [pscustomobject]@{
-                            ScopeType = 'InvoiceSection'
-                            id = $_.id
-                            name = $_.name
-                            displayName = $_.properties.displayName
-                            type = $_.type
+                            ScopeType          = 'InvoiceSection'
+                            id                 = $_.id
+                            name               = $_.name
+                            displayName        = $_.properties.displayName
+                            scopeDisplayName   = $_.properties.displayName
+                            type               = $_.type
                             billingAccountName = $accountName
                             billingProfileName = $profileName
-                            properties = $_.properties
+                            properties         = $_.properties
                         }
                     }
                 }
@@ -149,14 +152,15 @@ function Get-AzooAzBillingScopes {
             $customers = Invoke-BillingPagedRequest -Uri "/providers/Microsoft.Billing/billingAccounts/$accountName/customers?api-version=$apiVersion"
             $scopes += $customers | ForEach-Object {
                 [pscustomobject]@{
-                    ScopeType = 'Customer'
-                    id = $_.id
-                    name = $_.name
-                    displayName = $_.properties.displayName
-                    type = $_.type
+                    ScopeType          = 'Customer'
+                    id                 = $_.id
+                    name               = $_.name
+                    displayName        = $_.properties.displayName
+                    scopeDisplayName   = $_.properties.displayName
+                    type               = $_.type
                     billingAccountName = $accountName
                     billingProfileName = $null
-                    properties = $_.properties
+                    properties         = $_.properties
                 }
             }
         }

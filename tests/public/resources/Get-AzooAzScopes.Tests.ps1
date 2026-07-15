@@ -98,6 +98,73 @@ Describe 'Get-AzooAzScopes' {
         @($script:Invocations | Where-Object { $_.Query -match '^ResourceContainers' }).Count | Should -Be 0
     }
 
+    It 'enriches scopeDisplayName from displayName for ManagementGroup, subscriptionName for Subscription and ResourceGroup, and name for Resource' {
+        Mock -CommandName Search-AzGraph -ModuleName Azoo -MockWith {
+            [pscustomobject]@{
+                Data = @(
+                    [pscustomobject]@{
+                        ScopeType        = 'ManagementGroup'
+                        id               = '/providers/Microsoft.Management/managementGroups/mg-a'
+                        name             = 'mg-a'
+                        type             = 'microsoft.management/managementgroups'
+                        subscriptionId   = $null
+                        displayName      = 'My Management Group'
+                        subscriptionName = $null
+                    }
+                    [pscustomobject]@{
+                        ScopeType        = 'Subscription'
+                        id               = '/subscriptions/sub-a'
+                        name             = 'sub-a'
+                        type             = 'microsoft.resources/subscriptions'
+                        subscriptionId   = 'sub-a'
+                        displayName      = $null
+                        subscriptionName = 'My Subscription'
+                    }
+                    [pscustomobject]@{
+                        ScopeType        = 'ResourceGroup'
+                        id               = '/subscriptions/sub-a/resourceGroups/rg-a'
+                        name             = 'rg-a'
+                        type             = 'microsoft.resources/subscriptions/resourcegroups'
+                        subscriptionId   = 'sub-a'
+                        displayName      = $null
+                        subscriptionName = 'My Subscription'
+                    }
+                )
+                SkipToken = $null
+            }
+        } -ParameterFilter { $Query -match '^ResourceContainers' }
+
+        Mock -CommandName Search-AzGraph -ModuleName Azoo -MockWith {
+            [pscustomobject]@{
+                Data = @(
+                    [pscustomobject]@{
+                        ScopeType      = 'Resource'
+                        id             = '/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.KeyVault/vaults/kv-a'
+                        name           = 'kv-a'
+                        type           = 'microsoft.keyvault/vaults'
+                        subscriptionId = 'sub-a'
+                        resourceGroup  = 'rg-a'
+                    }
+                )
+                SkipToken = $null
+            }
+        } -ParameterFilter { $Query -match '^Resources' }
+
+        $result = @(Get-AzooAzScopes -ManagementGroup -Subscription -ResourceGroup -Resource)
+
+        $result.Count | Should -Be 4
+
+        $mg  = $result | Where-Object { $_.ScopeType -eq 'ManagementGroup' }
+        $sub = $result | Where-Object { $_.ScopeType -eq 'Subscription' }
+        $rg  = $result | Where-Object { $_.ScopeType -eq 'ResourceGroup' }
+        $res = $result | Where-Object { $_.ScopeType -eq 'Resource' }
+
+        $mg.scopeDisplayName  | Should -Be 'My Management Group'
+        $sub.scopeDisplayName | Should -Be 'My Subscription'
+        $rg.scopeDisplayName  | Should -Be 'My Subscription'
+        $res.scopeDisplayName | Should -Be 'kv-a'
+    }
+
     It 'applies optional script block filtering to the returned scopes' {
         Mock -CommandName Search-AzGraph -ModuleName Azoo -MockWith {
             [pscustomobject]@{

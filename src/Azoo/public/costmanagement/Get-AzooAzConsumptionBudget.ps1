@@ -60,6 +60,16 @@ $budgets | Select-Object id, scopeDisplayName, category, amount, currentSpend, f
 | Out-HtmlView -DefaultSortColumn endDate -PrettifyObject -PagingLength 25
 
 Gets all budgets from all discovered scopes, expands the properties and timePeriod objects, and outputs a table view of selected budget properties.
+
+.EXAMPLE
+$scopes = @((Get-AzooAzScopes) + (Get-AzooAzBillingScopes))
+# do filtering if needed
+$scopes | Get-AzooAzConsumptionBudget
+
+.EXAMPLE
+$scopes = @((Get-AzooAzScopes) + (Get-AzooAzBillingScopes))
+# do filtering if needed
+Get-AzooAzConsumptionBudget -InputObject $scopes
 #>
 function Get-AzooAzConsumptionBudget {
     [CmdletBinding(DefaultParameterSetName = 'AutoScopes')]
@@ -246,16 +256,7 @@ function Get-AzooAzConsumptionBudget {
             if ($scopeObjects) {
                 $scopeObject = $scopeObjects | Where-Object { $_.id -eq $scope }
                 $scopeDisplayName = if ($scopeObject) {
-                    switch ($scopeObject.ScopeType) {
-                        'ManagementGroup' { $scopeObject.displayName }
-                        'Subscription'    { $scopeObject.subscriptionName }
-                        'ResourceGroup'   { $scopeObject.subscriptionName }
-                        'BillingAccount'  { $scopeObject.properties.displayName }
-                        'BillingProfile'  { $scopeObject.properties.displayName }
-                        'InvoiceSection'  { $scopeObject.properties.displayName }
-                        'Customer'        { Write-Warning 'TODO: check'; $scopeObject.properties.displayName }
-                        default           { Write-Warning "Unknown scope type: $($scopeObject.ScopeType)"; '--' }
-                    }
+                    $scopeObject.scopeDisplayName
                 } else {
                     Write-Warning "Unable to find scope object for scope '$scope'. Cannot determine display name."
                     'unknown'

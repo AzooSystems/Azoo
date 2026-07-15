@@ -125,7 +125,12 @@ ResourceContainers
     if ($fetchResources) {
         $resourceQuery = @'
 Resources
-| project ScopeType = 'Resource', id, name, type, subscriptionId, resourceGroup, location
+| join kind=leftouter  (
+    resourcecontainers
+    | where type =~ 'microsoft.resources/subscriptions'
+    | project subscriptionId = subscriptionId, subscriptionName = name
+) on $left.subscriptionId == $right.subscriptionId
+| project ScopeType = 'Resource', id, name, type, subscriptionId, resourceGroup, location, subscriptionName
 '@
         $scopes += Invoke-PagedAzGraphQuery -Query $resourceQuery
     }
@@ -134,5 +139,40 @@ Resources
         $scopes = $scopes | Where-Object -FilterScript $FilterScript
     }
 
-    $scopes
+    $scopes | Select-Object *, @{
+        Name       = 'scopeDisplayName'
+        Expression = {
+            $scope = $_
+            switch ($scope.ScopeType) {
+                'ManagementGroup' { [string]$scope.displayName }
+                'Subscription'    { [string]$scope.subscriptionName }
+                'ResourceGroup'   { [string]$scope.subscriptionName }
+                default           { [string]$scope.name }
+            }
+        }
+    }, @{
+        Name       = 'scopeSubscriptionName'
+        Expression = {
+            $scope = $_
+            switch ($scope.ScopeType) {
+                'ManagementGroup' { "" }
+                'Subscription'    { [string]$scope.subscriptionName }
+                'ResourceGroup'   { [string]$scope.subscriptionName }
+                'Resource'        { [string]$scope.subscriptionName }
+                default           { [string]$scope.name }
+            }
+        }
+    }, @{
+        Name       = 'scopeResourceGroupName'
+        Expression = {
+            $scope = $_
+            switch ($scope.ScopeType) {
+                'ManagementGroup' { "" }
+                'Subscription'    { "" }
+                'ResourceGroup'   { [string]$scope.name }
+                'Resource'        { [string]$scope.resourceGroup }
+                default           { [string]$scope.name }
+            }
+        }
+    }
 }

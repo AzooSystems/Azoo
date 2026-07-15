@@ -257,8 +257,8 @@ Describe 'Get-AzooAzConsumptionBudget' {
         }
 
         $scopeObjects = @(
-            [pscustomobject]@{ id = '/subscriptions/sub-a'; ScopeType = 'Subscription'; subscriptionName = 'Sub A' }
-            [pscustomobject]@{ id = '/subscriptions/sub-b'; ScopeType = 'Subscription'; subscriptionName = 'Sub B' }
+            [pscustomobject]@{ id = '/subscriptions/sub-a'; ScopeType = 'Subscription'; subscriptionName = 'Sub A'; scopeDisplayName = 'Sub A' }
+            [pscustomobject]@{ id = '/subscriptions/sub-b'; ScopeType = 'Subscription'; subscriptionName = 'Sub B'; scopeDisplayName = 'Sub B' }
         )
 
         $result = @(Get-AzooAzConsumptionBudget -InputObject $scopeObjects)

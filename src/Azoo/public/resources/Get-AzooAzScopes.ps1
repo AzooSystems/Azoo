@@ -95,7 +95,7 @@ ResourceContainers
 | project ScopeType, id, name, type, subscriptionId, tenantId, displayName = properties.displayName, subscriptionName, properties, location
 "@
 
-        $scopes += Invoke-AzooAzPagedQuery -Query $containerQuery -First $First
+        $scopes += Search-AzooAzGraph -Query $containerQuery -First $First
     }
 
     if ($fetchResources) {
@@ -108,7 +108,7 @@ Resources
 ) on $left.subscriptionId == $right.subscriptionId
 | project ScopeType = 'Resource', id, name, type, subscriptionId, resourceGroup, location, subscriptionName
 '@
-        $scopes += Invoke-AzooAzPagedQuery -Query $resourceQuery -First $First
+        $scopes += Search-AzooAzGraph -Query $resourceQuery -First $First
     }
 
     if ($FilterScript) {

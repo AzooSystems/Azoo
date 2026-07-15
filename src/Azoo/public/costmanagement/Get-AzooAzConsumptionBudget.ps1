@@ -20,10 +20,17 @@ One or more enclosing scope resource IDs to query budgets from.
 Optional budget name. When provided, gets a single budget per scope.
 When omitted, lists all budgets per scope.
 
+.PARAMETER InputObject
+One or more scope objects to query budgets from. Accepts pipeline input.
+Objects must have an id property containing a valid ARM scope resource ID.
+The same built-in filters that apply to automatic scope discovery are applied
+unless -DisableFilter is specified.
+
 .PARAMETER DisableFilter
-Disables built-in scope filters used during automatic scope discovery.
-By default, billing account scopes with agreementType MicrosoftOnlineServicesProgram
-are excluded because those agreements do not support budgets.
+Disables built-in scope filters applied during automatic scope discovery and
+when InputObject is used. By default, billing account scopes with
+agreementType MicrosoftOnlineServicesProgram are excluded because those
+agreements do not support budgets.
 
 .EXAMPLE
 $resourceId = '/subscriptions/00000000-0000-0000-0000-000000000000'
@@ -49,7 +56,7 @@ Gets budget named monthly-budget from all discovered scopes.
 $budgets = Get-AzooAzConsumptionBudget
 $null = $budgets | Expand-ObjectProperty -propertyName properties
 $null = $budgets | Expand-ObjectProperty -propertyName timePeriod
-$budgets | Select-Object id, scopeDisplayName, category, amount, currentSpend, forecastSpend, startDate, endDate `
+$budgets | Select-Object id, scopeDisplayName, category, amount, currentSpend, forecastSpend, startDate, endDate, scopeType `
 | Out-HtmlView -DefaultSortColumn endDate -PrettifyObject -PagingLength 25
 
 Gets all budgets from all discovered scopes, expands the properties and timePeriod objects, and outputs a table view of selected budget properties.
@@ -65,6 +72,10 @@ function Get-AzooAzConsumptionBudget {
         [ValidateNotNullOrEmpty()]
         [string[]]$ScopeIds,
 
+        [Parameter(Mandatory, ParameterSetName = 'InputObjects', ValueFromPipeline)]
+        [ValidateNotNullOrEmpty()]
+        [object[]]$InputObject,
+
         [Parameter()]
         [ValidateNotNullOrEmpty()]
         [string]$Name,
@@ -73,139 +84,194 @@ function Get-AzooAzConsumptionBudget {
         [switch]$DisableFilter
     )
 
-    $apiVersion = '2023-03-01'
-    Write-Verbose "Resolving target scopes (parameter set: $($PSCmdlet.ParameterSetName))."
-    $targetScopes = switch ($PSCmdlet.ParameterSetName) {
-        'SingleScope' { @($ScopeId) }
-        'MultipleScopes' { @($ScopeIds) }
-        default {
-            Write-Verbose 'Fetching Azure resource scopes via Get-AzooAzScopes.'
-            $resourceScopeObjects = @(Get-AzooAzScopes)
-            $resourceScopes = @($resourceScopeObjects | Select-Object -ExpandProperty id)
-            Write-Verbose "Fetched $($resourceScopes.Count) resource scope(s)."
+    begin {
+        $inputObjectBuffer = [System.Collections.Generic.List[object]]::new()
+    }
 
-            Write-Verbose 'Fetching Azure billing scopes via Get-AzooAzBillingScopes (this may take a while).'
-            $billingScopeObjects = @(Get-AzooAzBillingScopes)
-            Write-Verbose "Fetched $($billingScopeObjects.Count) billing scope object(s)."
+    process {
+        if ($PSCmdlet.ParameterSetName -eq 'InputObjects') {
+            foreach ($obj in @($InputObject)) {
+                $inputObjectBuffer.Add($obj)
+            }
+        }
+    }
 
-            if (-not $DisableFilter) {
-                $ignoredBillingScopeObjects = @(
-                    $billingScopeObjects |
-                        Where-Object {
-                            $_.type -ieq 'Microsoft.Billing/billingAccounts' -and
-                            $_.properties -and
-                            $_.properties.agreementType -ieq 'MicrosoftOnlineServicesProgram'
-                        }
-                )
+    end {
+        $apiVersion = '2023-03-01'
+        $scopeObjects = $null
 
-                if ($ignoredBillingScopeObjects.Count -gt 0) {
-                    $ignoredScopeIds = @(
-                        $ignoredBillingScopeObjects |
-                            Where-Object { $_.id } |
-                            Select-Object -ExpandProperty id
-                    )
-                    $ignoredScopeList = if ($ignoredScopeIds.Count -gt 0) {
-                        ($ignoredScopeIds -join ', ')
-                    } else {
-                        '<unknown>'
-                    }
+        Write-Verbose "Resolving target scopes (parameter set: $($PSCmdlet.ParameterSetName))."
 
-                    Write-Warning "Ignoring $($ignoredBillingScopeObjects.Count) billing scope(s) because MicrosoftOnlineServicesProgram agreement types do not support budgets. Use -DisableFilter to include these scopes. Ignored scope(s): $ignoredScopeList"
-                }
+        $targetScopes = switch ($PSCmdlet.ParameterSetName) {
+            'SingleScope' { @($ScopeId) }
+            'MultipleScopes' { @($ScopeIds) }
+            'InputObjects' {
+                $candidateObjects = @($inputObjectBuffer)
+                Write-Verbose "Received $($candidateObjects.Count) scope object(s) via InputObject."
 
-                $billingScopeObjects = @(
-                    $billingScopeObjects |
-                        Where-Object {
-                            -not (
+                if (-not $DisableFilter) {
+                    $ignoredObjects = @(
+                        $candidateObjects |
+                            Where-Object {
                                 $_.type -ieq 'Microsoft.Billing/billingAccounts' -and
                                 $_.properties -and
                                 $_.properties.agreementType -ieq 'MicrosoftOnlineServicesProgram'
-                            )
-                        }
-                )
-            }
+                            }
+                    )
 
-            $billingScopes = @($billingScopeObjects | Select-Object -ExpandProperty id)
-            Write-Verbose "Fetched $($billingScopes.Count) billing scope(s)."
+                    if ($ignoredObjects.Count -gt 0) {
+                        $ignoredIds = @($ignoredObjects | Where-Object { $_.id } | Select-Object -ExpandProperty id)
+                        $ignoredList = if ($ignoredIds.Count -gt 0) { $ignoredIds -join ', ' } else { '<unknown>' }
+                        Write-Warning "Ignoring $($ignoredObjects.Count) scope(s) because MicrosoftOnlineServicesProgram agreement types do not support budgets. Use -DisableFilter to include these scopes. Ignored scope(s): $ignoredList"
+                    }
 
-            $scopeObjects = @($resourceScopeObjects + $billingScopeObjects)
-            @($resourceScopes + $billingScopes)
-        }
-    }
-
-    $normalizedScopes = @(
-        $targetScopes |
-            Where-Object { $_ } |
-            ForEach-Object { Normalize-AzooScopeId -Value $_ } |
-            Select-Object -Unique
-    )
-    Write-Verbose "Resolved $($normalizedScopes.Count) unique normalized scope(s)."
-
-    if (-not $normalizedScopes) {
-        Write-Verbose 'No scopes resolved. Exiting without issuing requests.'
-        return
-    }
-
-    $requestScopeMap = @{}
-    $batchRequests = [System.Collections.Generic.List[object]]::new()
-
-    for ($index = 0; $index -lt $normalizedScopes.Count; $index++) {
-        $scope = $normalizedScopes[$index]
-        $path = if ($Name) {
-            "$scope/providers/Microsoft.Consumption/budgets/$($Name)?api-version=$apiVersion"
-        } else {
-            "$scope/providers/Microsoft.Consumption/budgets?api-version=$apiVersion"
-        }
-
-        $requestName = "scope_$index"
-        $requestScopeMap[$requestName] = $scope
-
-        Write-Verbose "Adding batch request '$requestName' for scope '$scope'."
-        $request = New-AzureBatchRequest -Method GET -Url $path -Name $requestName
-        foreach ($item in @($request)) {
-            $batchRequests.Add($item)
-        }
-    }
-
-    Write-Verbose "Prepared $($batchRequests.Count) ARM batch request item(s)."
-    Write-Verbose 'Invoking ARM batch request.'
-    $batchResult = @(Invoke-AzureBatchRequest -BatchRequest $batchRequests)
-    Write-Verbose "Received $($batchResult.Count) response item(s) from ARM batch request."
-    foreach ($item in $batchResult) {
-        $scope = $requestScopeMap[$item.RequestName]
-        if (-not $scope) {
-            Write-Warning "Unable to map Microsoft.Consumption response to scope. RequestName: '$($item.RequestName)'."
-        }
-
-        if ($PSCmdlet.ParameterSetName -eq 'AutoScopes') {
-            $scopeObject = $scopeObjects | Where-Object { $_.id -eq $scope }
-            $scopeDisplayName = if ($scopeObject) {
-                switch ($scopeObject.ScopeType) {
-                    'ManagementGroup' { $scopeObject.displayName }
-                    'Subscription' { $scopeObject.subscriptionName }
-                    'ResourceGroup' { $scopeObject.subscriptionName }
-                    # 
-                    'BillingAccount' { $scopeObject.properties.displayName }
-                    'BillingProfile' { $scopeObject.properties.displayName }
-                    'InvoiceSection' { $scopeObject.properties.displayName }
-                    'Customer' { Write-Warning "TODO: check" ; $scopeObject.properties.displayName }
-                    default { Write-Warning "Unknown scope type: $($scopeObject.ScopeType)"; "--" }
+                    $candidateObjects = @(
+                        $candidateObjects |
+                            Where-Object {
+                                -not (
+                                    $_.type -ieq 'Microsoft.Billing/billingAccounts' -and
+                                    $_.properties -and
+                                    $_.properties.agreementType -ieq 'MicrosoftOnlineServicesProgram'
+                                )
+                            }
+                    )
                 }
-            } else {
-                Write-Warning "Unable to find scope object for scope '$scope'. Cannot determine subscription name."
-                "unknown"
+
+                $scopeObjects = $candidateObjects
+                @($candidateObjects | Where-Object { $_.id } | Select-Object -ExpandProperty id)
+            }
+            default {
+                Write-Verbose 'Fetching Azure resource scopes via Get-AzooAzScopes.'
+                $resourceScopeObjects = @(Get-AzooAzScopes)
+                $resourceScopes = @($resourceScopeObjects | Select-Object -ExpandProperty id)
+                Write-Verbose "Fetched $($resourceScopes.Count) resource scope(s)."
+
+                Write-Verbose 'Fetching Azure billing scopes via Get-AzooAzBillingScopes (this may take a while).'
+                $billingScopeObjects = @(Get-AzooAzBillingScopes)
+                Write-Verbose "Fetched $($billingScopeObjects.Count) billing scope object(s)."
+
+                if (-not $DisableFilter) {
+                    $ignoredBillingScopeObjects = @(
+                        $billingScopeObjects |
+                            Where-Object {
+                                $_.type -ieq 'Microsoft.Billing/billingAccounts' -and
+                                $_.properties -and
+                                $_.properties.agreementType -ieq 'MicrosoftOnlineServicesProgram'
+                            }
+                    )
+
+                    if ($ignoredBillingScopeObjects.Count -gt 0) {
+                        $ignoredScopeIds = @(
+                            $ignoredBillingScopeObjects |
+                                Where-Object { $_.id } |
+                                Select-Object -ExpandProperty id
+                        )
+                        $ignoredScopeList = if ($ignoredScopeIds.Count -gt 0) {
+                            ($ignoredScopeIds -join ', ')
+                        } else {
+                            '<unknown>'
+                        }
+
+                        Write-Warning "Ignoring $($ignoredBillingScopeObjects.Count) billing scope(s) because MicrosoftOnlineServicesProgram agreement types do not support budgets. Use -DisableFilter to include these scopes. Ignored scope(s): $ignoredScopeList"
+                    }
+
+                    $billingScopeObjects = @(
+                        $billingScopeObjects |
+                            Where-Object {
+                                -not (
+                                    $_.type -ieq 'Microsoft.Billing/billingAccounts' -and
+                                    $_.properties -and
+                                    $_.properties.agreementType -ieq 'MicrosoftOnlineServicesProgram'
+                                )
+                            }
+                    )
+                }
+
+                $billingScopes = @($billingScopeObjects | Select-Object -ExpandProperty id)
+                Write-Verbose "Fetched $($billingScopes.Count) billing scope(s)."
+
+                $scopeObjects = @($resourceScopeObjects + $billingScopeObjects)
+                @($resourceScopes + $billingScopes)
             }
         }
 
-        [pscustomobject]@{
-            ScopeId = $scope
-            id = $item.id
-            name = $item.name
-            type = $item.type
-            eTag = $item.eTag
-            properties = $item.properties
-            scopeDisplayName = $scopeDisplayName
-            scopeType = if ($scopeObject) { $scopeObject.ScopeType } else { "unknown" }
+        $normalizedScopes = @(
+            $targetScopes |
+                Where-Object { $_ } |
+                ForEach-Object { Normalize-AzooScopeId -Value $_ } |
+                Select-Object -Unique
+        )
+        Write-Verbose "Resolved $($normalizedScopes.Count) unique normalized scope(s)."
+
+        if (-not $normalizedScopes) {
+            Write-Verbose 'No scopes resolved. Exiting without issuing requests.'
+            return
+        }
+
+        $requestScopeMap = @{}
+        $batchRequests = [System.Collections.Generic.List[object]]::new()
+
+        for ($index = 0; $index -lt $normalizedScopes.Count; $index++) {
+            $scope = $normalizedScopes[$index]
+            $path = if ($Name) {
+                "$scope/providers/Microsoft.Consumption/budgets/$($Name)?api-version=$apiVersion"
+            } else {
+                "$scope/providers/Microsoft.Consumption/budgets?api-version=$apiVersion"
+            }
+
+            $requestName = "scope_$index"
+            $requestScopeMap[$requestName] = $scope
+
+            Write-Verbose "Adding batch request '$requestName' for scope '$scope'."
+            $request = New-AzureBatchRequest -Method GET -Url $path -Name $requestName
+            foreach ($item in @($request)) {
+                $batchRequests.Add($item)
+            }
+        }
+
+        Write-Verbose "Prepared $($batchRequests.Count) ARM batch request item(s)."
+        Write-Verbose 'Invoking ARM batch request.'
+        $batchResult = @(Invoke-AzureBatchRequest -BatchRequest $batchRequests)
+        Write-Verbose "Received $($batchResult.Count) response item(s) from ARM batch request."
+
+        foreach ($item in $batchResult) {
+            $scope = $requestScopeMap[$item.RequestName]
+            if (-not $scope) {
+                Write-Warning "Unable to map Microsoft.Consumption response to scope. RequestName: '$($item.RequestName)'."
+            }
+
+            $scopeObject = $null
+            $scopeDisplayName = $null
+
+            if ($scopeObjects) {
+                $scopeObject = $scopeObjects | Where-Object { $_.id -eq $scope }
+                $scopeDisplayName = if ($scopeObject) {
+                    switch ($scopeObject.ScopeType) {
+                        'ManagementGroup' { $scopeObject.displayName }
+                        'Subscription'    { $scopeObject.subscriptionName }
+                        'ResourceGroup'   { $scopeObject.subscriptionName }
+                        'BillingAccount'  { $scopeObject.properties.displayName }
+                        'BillingProfile'  { $scopeObject.properties.displayName }
+                        'InvoiceSection'  { $scopeObject.properties.displayName }
+                        'Customer'        { Write-Warning 'TODO: check'; $scopeObject.properties.displayName }
+                        default           { Write-Warning "Unknown scope type: $($scopeObject.ScopeType)"; '--' }
+                    }
+                } else {
+                    Write-Warning "Unable to find scope object for scope '$scope'. Cannot determine display name."
+                    'unknown'
+                }
+            }
+
+            [pscustomobject]@{
+                ScopeId          = $scope
+                id               = $item.id
+                name             = $item.name
+                type             = $item.type
+                eTag             = $item.eTag
+                properties       = $item.properties
+                scopeDisplayName = $scopeDisplayName
+                scopeType        = if ($scopeObject) { $scopeObject.ScopeType } else { 'unknown' }
+            }
         }
     }
 }

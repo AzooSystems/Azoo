@@ -111,7 +111,12 @@ ResourceContainers
     type =~ 'microsoft.resources/subscriptions', 'Subscription',
     type =~ 'microsoft.resources/subscriptions/resourcegroups', 'ResourceGroup',
     'Unknown')
-| project ScopeType, id, name, type, subscriptionId, tenantId
+| join kind=leftouter  (
+    resourcecontainers
+    | where type =~ 'microsoft.resources/subscriptions'
+    | project subscriptionId = subscriptionId, subscriptionName = name
+) on `$left.subscriptionId == `$right.subscriptionId
+| project ScopeType, id, name, type, subscriptionId, tenantId, displayName = properties.displayName, subscriptionName, properties, location
 "@
 
         $scopes += Invoke-PagedAzGraphQuery -Query $containerQuery

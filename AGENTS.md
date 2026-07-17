@@ -26,11 +26,14 @@ This repository contains a script-based PowerShell module for Azure administrati
 - Use CmdletBinding() for advanced functions.
 - For state-changing commands, use CmdletBinding(SupportsShouldProcess) and guard execution with ShouldProcess.
 - Use explicit parameter validation where it improves safety (Mandatory, ValidateSet, ParameterSetName).
+- Ensure every new command-line parameter is documented in comment-based help (`.PARAMETER`).
 - Keep private helper utilities under src/Azoo/private/.
+- For commands that operate on multiple scopes, default to using `Get-AzooAzScopes` and `Get-AzooAzBillingScopes` as input sources unless explicitly overridden.
+- For commands that operate on multiple scopes, explicitly decide whether to use `New-AzureBatchRequest` and `Invoke-AzureBatchRequest`; if unclear from requirements, ask the user before implementation.
 
 ## Validation And Release
 
-- Tests are implemented with Pester (v6 in local dev at time of writing).
+- Agentic workloads must target Pester v6.x.x from the start. Do not author tests against older Pester syntax first and then migrate after failures.
 - Test discovery is configured in `pester.config.psd1` with `TestSuite.Path = tests`.
 - Keep test files under `tests/`, mirroring source intent:
   - Public command tests: `tests/public/<category>/<Command>.Tests.ps1`
@@ -51,6 +54,7 @@ This repository contains a script-based PowerShell module for Azure administrati
 ## Environment Notes
 
 - Manifest targets PowerShell 5.1 minimum.
+  - ConvertFrom-Json should not include -Depth parameter to main compatibility
 - Some commands require Azure context and Az modules (for example, Get-AzADUser and role scheduling cmdlets).
 - Some interactive flows use Out-GridView (Desktop) or Out-ConsoleGridView (Core).
 
@@ -66,6 +70,10 @@ This repository contains a script-based PowerShell module for Azure administrati
 - Confirm function file placement and naming match existing patterns.
 - If a public command is added, ensure its basename matches the exported function name.
 - Add or update tests under `tests/` for changed behavior.
+- Ensure tests use Pester v6.x.x-compatible patterns and assertions.
+- Ensure every new parameter added to a public command has corresponding `.PARAMETER` help text.
+- For multi-scope commands, verify default inputs come from `Get-AzooAzScopes` and `Get-AzooAzBillingScopes`, or document why not.
+- For multi-scope commands, confirm whether batch request helpers should be used; if requirements are ambiguous, ask the user.
 - If tests rely on network or external tools, tag them `E2E` and keep a skip path with a clear reason.
 - Avoid changing release semantics unless explicitly requested.
 - Keep edits minimal and scoped; do not refactor unrelated files.

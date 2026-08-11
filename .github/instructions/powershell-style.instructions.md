@@ -16,6 +16,7 @@ applyTo: "src/Azoo/public/**/*.ps1"
 - Keep parameter names and behavior compatible with existing public commands unless a breaking change is explicitly requested.
 - Avoid interactive-only flows unless needed; if interaction is required, keep Desktop/Core compatibility checks.
 - Keep implementation focused and minimal; move reusable internals to private helpers under src/Azoo/private/.
+- Architectural decisions driven by Powershell 5.1 support must be documented in the code comments, and any workarounds must be clearly explained.
 
 ## Quick Pattern
 

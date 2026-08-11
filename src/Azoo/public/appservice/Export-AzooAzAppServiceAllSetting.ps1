@@ -1,11 +1,74 @@
-function Export-AzooAzAppServiceAppAllSettings {
-    [CmdletBinding(DefaultParameterSetName = 'ByName')]
+<#
+.SYNOPSIS
+Exports Azure Function App settings and related configuration to files.
+
+.DESCRIPTION
+Exports site, server farm, and known configuration payloads for one or more
+App Service site resources. Targets can be provided by name/resource group, by resource ID,
+or by pipeline input objects.
+
+.PARAMETER SiteName
+Name of the site resource when using the ByName parameter set.
+
+.PARAMETER SiteResourceGroupName
+Resource group name of the site resource when using the ByName parameter set.
+
+.PARAMETER ResourceId
+One or more App Service site resource IDs.
+Accepts pipeline input by value and by property name.
+Example:
+/subscriptions/<subscriptionId>/resourceGroups/<resourceGroup>/providers/Microsoft.Web/sites/<siteName>
+
+.PARAMETER InputObject
+Input object for site resource resolution. When present, the function tries to
+resolve from Id/ResourceId first, then falls back to Name/ResourceGroup for
+site objects.
+
+.PARAMETER OutputDirectory
+Directory where the exported files are written.
+
+.PARAMETER IncludeDiagnostics
+Includes diagnostic settings export.
+
+.PARAMETER IncludePublishingProfile
+Includes publishing profile export.
+
+.PARAMETER IncludeSlots
+Includes deployment slot export.
+
+.PARAMETER Force
+Passes Force to list action resource calls.
+
+.EXAMPLE
+$fas = Get-AzFunctionApp
+$fas[0].Id | Export-AzooAzAppServiceAllSetting -OutputDirectory "gg" -IncludeDiagnostics -IncludePublishingProfile -IncludeSlots
+
+.EXAMPLE
+$fas = Get-AzFunctionApp
+$fas | Export-AzooAzAppServiceAllSetting -OutputDirectory "gg" -IncludeDiagnostics -IncludePublishingProfile -IncludeSlots
+
+.EXAMPLE
+$apps = Get-AzWebApp
+$apps | Export-AzooAzAppServiceAllSetting -OutputDirectory "gg" -IncludeDiagnostics -IncludePublishingProfile -IncludeSlots
+
+.EXAMPLE
+Export-AzooAzAppServiceAllSetting -OutputDirectory "gg" -IncludeDiagnostics -IncludePublishingProfile -IncludeSlots
+
+#>
+function Export-AzooAzAppServiceAllSetting {
+    [CmdletBinding(DefaultParameterSetName = 'ByInputObject')]
     param (
         [Parameter(Mandatory = $true, ParameterSetName = 'ByName')]
-        [string] $FunctionAppName,
+        [Alias('FunctionAppName')]
+        [string] $SiteName,
 
         [Parameter(Mandatory = $true, ParameterSetName = 'ByName')]
-        [string] $FunctionAppResourcegroupName,
+        [Alias('FunctionAppResourcegroupName')]
+        [string] $SiteResourceGroupName,
+
+        [Parameter(Mandatory = $true, ParameterSetName = 'ByResourceId', ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+        [Alias('Id')]
+        [string[]] $ResourceId,
 
         [Parameter(Mandatory = $false, ValueFromPipeline = $true, ParameterSetName = 'ByInputObject')]
         [object] $InputObject,
@@ -21,6 +84,27 @@ function Export-AzooAzAppServiceAppAllSettings {
 
     begin {
         $appsToExport = @()
+
+        function Resolve-AzooFunctionAppFromResourceId {
+            param(
+                [Parameter(Mandatory = $true)]
+                [string]$Value
+            )
+
+            $resourceIdPattern = '^/subscriptions/(?<SubscriptionId>[^/]+)/resourceGroups/(?<ResourceGroup>[^/]+)/providers/Microsoft\.Web/sites/(?<Name>[^/]+)$'
+            if ($Value -match $resourceIdPattern) {
+                [PSCustomObject]@{
+                    Name = $Matches.Name
+                    ResourceGroup = $Matches.ResourceGroup
+                    SubscriptionId = $Matches.SubscriptionId
+                    SiteResourceId = $Value
+                }
+                return
+            }
+
+            $null
+        }
+
         $knownConfigTypes = @(
             "basicPublishingCredentialsPolicies",
             "errorpages",
@@ -49,34 +133,66 @@ function Export-AzooAzAppServiceAppAllSettings {
     }
 
     process {
+        if ($PSCmdlet.ParameterSetName -eq 'ByResourceId') {
+            foreach ($id in @($ResourceId)) {
+                if (-not $id) {
+                    continue
+                }
+
+                $resolvedApp = Resolve-AzooFunctionAppFromResourceId -Value $id
+                if ($null -ne $resolvedApp) {
+                    $appsToExport += $resolvedApp
+                } else {
+                    Write-Warning "Skipping invalid App Service site resource ID: $id"
+                }
+            }
+        }
+
         if ($PSCmdlet.ParameterSetName -eq 'ByInputObject' -and $InputObject) {
-            if ($InputObject.Kind -like '*functionapp*') {
-                $appsToExport += [PSCustomObject]@{
-                    Name = $InputObject.Name
-                    ResourceGroup = $InputObject.ResourceGroup
+            $candidateId = $null
+            if ($InputObject -is [string]) {
+                $candidateId = $InputObject
+            }
+            else {
+                $candidateId = $InputObject.Id
+                if (-not $candidateId) {
+                    $candidateId = $InputObject.ResourceId
+                }
+            }
+
+            if ($candidateId) {
+                $resolvedApp = Resolve-AzooFunctionAppFromResourceId -Value $candidateId
+                if ($null -ne $resolvedApp) {
+                    $appsToExport += $resolvedApp
+                } else {
+                    Write-Warning "Skipping input object with invalid App Service site resource ID: $candidateId"
                 }
             } else {
-                Write-Warning "Skipping non-Function App input: $($InputObject.Name)"
+                Write-Warning "Skipping non-site input: $($InputObject.Name). No resolveable Id/ResourceId property found."
             }
         }
     }
 
     end {
         if ($PSCmdlet.ParameterSetName -eq 'ByName') {
-            $app = Get-AzFunctionApp -Name $FunctionAppName -ResourceGroupName $FunctionAppResourcegroupName -ErrorAction Stop
+            # Get-AzWebApp returns both Web Apps and Function Apps
+            $app = Get-AzWebApp -Name $SiteName -ResourceGroupName $SiteResourceGroupName -ErrorAction Stop
             if ($Null -eq $app) {
-                throw "Could not find given function app"
+                throw "Could not find given site resource"
             }
             Write-Verbose $app
+            $resolvedByName = Resolve-AzooFunctionAppFromResourceId -Value $app.Id
+
             $appsToExport += [PSCustomObject]@{
                 Name = $app.Name
                 ResourceGroup = $app.ResourceGroup
+                SiteResourceId = $app.Id
+                SubscriptionId = if ($resolvedByName) { $resolvedByName.SubscriptionId } else { $null }
             }
             Write-Verbose $appsToExport[0]
         }
 
-        $appsToExport = $appsToExport | Sort-Object Name -Unique
-        $subscriptionId = (Get-AzContext).Subscription.Id
+        $appsToExport = $appsToExport | Sort-Object SiteResourceId, Name -Unique
 
         foreach ($app in $appsToExport) {
             $appDir = Join-Path $OutputDirectory $app.Name
@@ -84,7 +200,27 @@ function Export-AzooAzAppServiceAppAllSettings {
                 New-Item -ItemType Directory -Path $appDir | Out-Null
             }
 
-            $siteResourceId = "/subscriptions/$subscriptionId/resourceGroups/$($app.ResourceGroup)/providers/Microsoft.Web/sites/$($app.Name)"
+            $siteResourceId = $app.SiteResourceId
+            if (-not $siteResourceId) {
+                $subscriptionId = $app.SubscriptionId
+
+                if (-not $subscriptionId -and $app.Subscription -and $app.Subscription.Id) {
+                    $subscriptionId = $app.Subscription.Id
+                }
+
+                if (-not $subscriptionId -and $app.Id) {
+                    $resolvedFromId = Resolve-AzooFunctionAppFromResourceId -Value $app.Id
+                    if ($resolvedFromId) {
+                        $subscriptionId = $resolvedFromId.SubscriptionId
+                    }
+                }
+
+                if (-not $subscriptionId) {
+                    throw "Could not resolve subscription ID from input for app '$($app.Name)'. Provide -ResourceId or pipeline input containing a site resource ID."
+                }
+
+                $siteResourceId = "/subscriptions/$subscriptionId/resourceGroups/$($app.ResourceGroup)/providers/Microsoft.Web/sites/$($app.Name)"
+            }
 
             # Base site config
             try {
@@ -117,7 +253,7 @@ function Export-AzooAzAppServiceAppAllSettings {
                     $filename = $cfg.Replace("config/", "").Replace("/", "_")
                     $resId = "$siteResourceId/$cfg"
                     Write-Verbose "Fetching data with list action for $resId"
-                    $cfgRes = Invoke-AzResourceAction -ResourceId $resId -Action "list" -ErrorAction Stop -Force:$Force
+                    $cfgRes = Invoke-AzResourceAction -ResourceId $resId -Action "list" -ErrorAction Stop -Force:$True
                     $cfgRes.Properties | ConvertTo-Json -Depth 10 | Out-File (Join-Path $appDir "$filename.json") -Encoding UTF8
                     Write-Host "✅ $($app.Name): $filename.json"
                 } catch {
@@ -159,7 +295,7 @@ function Export-AzooAzAppServiceAppAllSettings {
             if ($IncludePublishingProfile) {
                 try {
                     Write-Verbose "Fetching data for publishingProfile"
-                    $profile = Get-AzWebAppPublishingProfile -Name $app.Name -ResourceGroupName $app.ResourceGroup -OutputFile (Join-Path $appDir "publishingProfile.xml") -ErrorAction Stop
+                    Get-AzWebAppPublishingProfile -Name $app.Name -ResourceGroupName $app.ResourceGroup -OutputFile (Join-Path $appDir "publishingProfile.xml") -ErrorAction Stop | Out-Null
                     Write-Host "✅ $($app.Name): publishingProfile.xml"
                 } catch {
                     Write-Warning "⚠️ $($app.Name): Could not get publishing profile"
@@ -195,12 +331,3 @@ function Export-AzooAzAppServiceAppAllSettings {
         }
     }
 }
-
-
-# "/providers/Microsoft.Web/functionAppStacks?stackOsType=windows&removeHiddenStacks=true&useCanaryFusionServer=false&api-version=2020-10-01"
-<#
-$res = Invoke-AzRestMethod -Method GET -Uri "https://management.azure.com/providers/Microsoft.Web/functionAppStacks?api-version=2024-11-01"
-$dataHT = ($res.Content | ConvertFrom-Json -AsHashtable).value
-$data = ($res.Content | ConvertFrom-Json).value
-
-#>

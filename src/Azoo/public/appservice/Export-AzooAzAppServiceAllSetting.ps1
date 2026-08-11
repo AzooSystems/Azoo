@@ -307,7 +307,7 @@ function Export-AzooAzAppServiceAllSetting {
                     Write-Verbose "Fetching data for slots"
                     $slots = Get-AzWebAppSlot -ResourceGroupName $app.ResourceGroup -Name $app.Name
                     foreach ($slot in $slots) {
-                        $slotDir = Join-Path $appDir "slots\$($slot.Name)"
+                        $slotDir = Join-Path $appDir "slots" "$($slot.Name)"
                         New-Item -ItemType Directory -Path $slotDir -Force | Out-Null
                         $slotId = $slot.Id
 

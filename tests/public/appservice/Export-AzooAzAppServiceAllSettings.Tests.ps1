@@ -1,4 +1,4 @@
-Describe 'Export-AzooAzAppServiceAllSettings' {
+Describe 'Export-AzooAzAppServiceAllSetting' {
     BeforeAll {
         $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../../..')).Path
         $manifestPath = Join-Path $repoRoot 'src/Azoo/Azoo.psd1'
@@ -68,7 +68,7 @@ Describe 'Export-AzooAzAppServiceAllSettings' {
     It 'accepts Function App resource id directly' {
         $resourceId = '/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.Web/sites/fn-app-a'
 
-        Export-AzooAzAppServiceAllSettings -ResourceId $resourceId -OutputDirectory $TestDrive
+        Export-AzooAzAppServiceAllSetting -ResourceId $resourceId -OutputDirectory $TestDrive
 
         $script:functionAppLookupCalls | Should -Be 0
         @($script:siteResourceIds) | Should -Contain $resourceId
@@ -77,7 +77,7 @@ Describe 'Export-AzooAzAppServiceAllSettings' {
     It 'accepts Function App resource id from pipeline input' {
         $resourceId = '/subscriptions/sub-b/resourceGroups/rg-b/providers/Microsoft.Web/sites/fn-app-b'
 
-        $resourceId | Export-AzooAzAppServiceAllSettings -OutputDirectory $TestDrive
+        $resourceId | Export-AzooAzAppServiceAllSetting -OutputDirectory $TestDrive
 
         $script:functionAppLookupCalls | Should -Be 0
         @($script:siteResourceIds) | Should -Contain $resourceId

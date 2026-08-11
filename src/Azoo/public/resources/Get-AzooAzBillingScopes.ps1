@@ -127,8 +127,8 @@ function Get-AzooAzBillingScopes {
             }
 
             if ($fetchInvoiceSections) {
-                foreach ($profile in $profiles) {
-                    $profileName = $profile.name
+                foreach ($billingProfile in $profiles) {
+                    $profileName = $billingProfile.name
                     $sections = Invoke-BillingPagedRequest -Uri "/providers/Microsoft.Billing/billingAccounts/$accountName/billingProfiles/$profileName/invoiceSections?api-version=$apiVersion"
 
                     $scopes += $sections | ForEach-Object {

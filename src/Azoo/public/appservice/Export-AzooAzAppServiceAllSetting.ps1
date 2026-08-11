@@ -21,8 +21,8 @@ Example:
 
 .PARAMETER InputObject
 Input object for site resource resolution. When present, the function tries to
-resolve from Id/ResourceId first, then falls back to Name/ResourceGroup for
-site objects.
+resolve from Id/ResourceId first (or accepts a raw resource ID string). Use
+-SiteName/-SiteResourceGroupName for name-based inputs.
 
 .PARAMETER OutputDirectory
 Directory where the exported files are written.
@@ -111,10 +111,9 @@ function Export-AzooAzAppServiceAllSetting {
             "config/authsettings",
             "config/authsettingsV2",
             "config/configreferences/appsettings",
-            "config/configreferences/connectionstrings"
+            "config/configreferences/connectionstrings",
             "config/logs",
             "config/slotConfigNames",
-            "config/configreferences/appsettings",
             "config/web"
         )
 
@@ -168,7 +167,7 @@ function Export-AzooAzAppServiceAllSetting {
                     Write-Warning "Skipping input object with invalid App Service site resource ID: $candidateId"
                 }
             } else {
-                Write-Warning "Skipping non-site input: $($InputObject.Name). No resolveable Id/ResourceId property found."
+                Write-Warning "Skipping non-site input: $($InputObject.Name). No resolvable Id/ResourceId property found."
             }
         }
     }

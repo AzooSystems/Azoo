@@ -120,7 +120,7 @@ function Export-AzooAzAppServiceAllSetting {
 
         $knownConfigTypesWithListAction = @(
             "config/azureStorageAccounts",
-            "config/appsettings"
+            "config/appsettings",
             "config/connectionstrings",
             "config/metadata"
         )

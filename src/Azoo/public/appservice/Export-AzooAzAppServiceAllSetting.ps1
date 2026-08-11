@@ -252,7 +252,7 @@ function Export-AzooAzAppServiceAllSetting {
                     $filename = $cfg.Replace("config/", "").Replace("/", "_")
                     $resId = "$siteResourceId/$cfg"
                     Write-Verbose "Fetching data with list action for $resId"
-                    $cfgRes = Invoke-AzResourceAction -ResourceId $resId -Action "list" -ErrorAction Stop -Force:$True
+                    $cfgRes = Invoke-AzResourceAction -ResourceId $resId -Action "list" -ErrorAction Stop -Force:$Force
                     $cfgRes.Properties | ConvertTo-Json -Depth 10 | Out-File (Join-Path $appDir "$filename.json") -Encoding UTF8
                     Write-Host "✅ $($app.Name): $filename.json"
                 } catch {
@@ -294,6 +294,7 @@ function Export-AzooAzAppServiceAllSetting {
             if ($IncludePublishingProfile) {
                 try {
                     Write-Verbose "Fetching data for publishingProfile"
+                    # TODO: proper implementation. Use resource id. Check what CmdLet fetches
                     Get-AzWebAppPublishingProfile -Name $app.Name -ResourceGroupName $app.ResourceGroup -OutputFile (Join-Path $appDir "publishingProfile.xml") -ErrorAction Stop | Out-Null
                     Write-Host "✅ $($app.Name): publishingProfile.xml"
                 } catch {
@@ -307,20 +308,84 @@ function Export-AzooAzAppServiceAllSetting {
                     Write-Verbose "Fetching data for slots"
                     $slots = Get-AzWebAppSlot -ResourceGroupName $app.ResourceGroup -Name $app.Name
                     foreach ($slot in $slots) {
-                        $slotDir = Join-Path $appDir "slots" "$($slot.Name)"
+                        Write-Verbose "Fetching data for slot $($slot.Name)"
+                        # Nested Join-Paths needed for PowerShell 5.1 compatibility
+                        $slotDir = Join-Path (Join-Path $appDir "slots") $slot.Name
                         New-Item -ItemType Directory -Path $slotDir -Force | Out-Null
                         $slotId = $slot.Id
 
                         try {
                             $slot | ConvertTo-Json -Depth 10 | Out-File (Join-Path $slotDir "slot.json") -Encoding UTF8
                             foreach ($cfg in $knownConfigTypes) {
-                                $slotCfgResId = "$slotId/config/$cfg"
-                                $slotCfg = Get-AzResource -ResourceId $slotCfgResId -ExpandProperties -ErrorAction Stop
-                                $slotCfg.Properties | ConvertTo-Json -Depth 10 | Out-File (Join-Path $slotDir "$cfg.json") -Encoding UTF8
+                                $slotCfgResId = "$slotId/$cfg"
+                                $filename = $cfg.Replace("config/", "").Replace("/", "_")
+
+                                try {
+                                    # fetch the config for the slot
+                                    Write-Verbose "Fetching data for slot config $slotCfgResId"
+                                    $slotCfg = Get-AzResource -ResourceId $slotCfgResId -ExpandProperties -ErrorAction Stop
+                                    if ($cfg -eq "basicPublishingCredentialsPolicies") {
+                                        $slotCfg | Select-Object name, Properties | ConvertTo-Json -Depth 10 | Out-File (Join-Path $slotDir "$filename.json") -Encoding UTF8
+                                    # TODO: write own set of config types for slots, as some configs are not available for slots (e.g. slotConfigNames)
+                                    } elseif ($cfg -ne "config/slotConfigNames") {
+                                        $slotCfg.Properties | ConvertTo-Json -Depth 10 | Out-File (Join-Path $slotDir "$filename.json") -Encoding UTF8
+                                    }
+                                    Write-Host "✅ $($app.Name): Slot '$($slot.Name)' config '$cfg' exported"
+                                } catch {
+                                    Write-Verbose "⚠️ $($app.Name): Slot '$($slot.Name)' config '$cfg' not found"
+                                }
                             }
+                            foreach ($cfg in $knownConfigTypesWithListAction) {
+                                $slotListCfgResId = "$slotId/$cfg"
+                                $filename = $cfg.Replace("config/", "").Replace("/", "_")
+
+                                try {
+                                    Write-Verbose "Fetching data with list action for slot config $slotListCfgResId"
+                                    $slotListCfg = Invoke-AzResourceAction -ResourceId $slotListCfgResId -Action "list" -ErrorAction Stop -Force:$Force
+                                    $slotListCfg.Properties | ConvertTo-Json -Depth 10 | Out-File (Join-Path $slotDir "$filename.json") -Encoding UTF8
+                                    Write-Host "✅ $($app.Name): Slot '$($slot.Name)' list config '$cfg' exported"
+                                } catch {
+                                    Write-Verbose "⚠️ $($app.Name): Slot '$($slot.Name)' list config '$cfg' not found"
+                                }
+                            }
+
+                            if ($IncludeDiagnostics) {
+                                try {
+                                    Write-Verbose "Fetching data for slot diagnosticsSettings"
+                                    $slotDiag = Get-AzDiagnosticSetting -ResourceId $slotId -ErrorAction Stop
+                                    $slotDiag | ConvertTo-Json -Depth 10 | Out-File (Join-Path $slotDir "diagnostics.json") -Encoding UTF8
+                                    Write-Host "✅ $($app.Name): Slot '$($slot.Name)' diagnostics.json"
+                                } catch {
+                                    Write-Warning "⚠️ $($app.Name): Slot '$($slot.Name)' diagnostics not found"
+                                }
+                            }
+
+                            if ($IncludePublishingProfile) {
+                                try {
+                                    Write-Verbose "Fetching data for slot publishingProfile"
+
+                                    # TODO: proper implementation. Use resource id. Check what CmdLet fetches
+                                    $slotPublishingProfilePath = Join-Path $slotDir "publishingProfile.xml"
+                                    $slotPublishingProfileParams = @{
+                                        Name = $app.Name
+                                        ResourceGroupName = $app.ResourceGroup
+                                        OutputFile = $slotPublishingProfilePath
+                                        ErrorAction = 'Stop'
+                                    }
+
+                                    $slotPublishingProfileParams.Slot = $slot.Name
+
+                                    Get-AzWebAppSlotPublishingProfile @slotPublishingProfileParams | Out-Null
+                                    Write-Host "✅ $($app.Name): Slot '$($slot.Name)' publishingProfile.xml"
+                                } catch {
+                                    # TODO: check how to use this...
+                                    Write-Warning "⚠️ $($app.Name): Slot '$($slot.Name)' could not get publishing profile. $($_.Exception.Message)"
+                                }
+                            }
+
                             Write-Host "✅ $($app.Name): Slot '$($slot.Name)' exported"
                         } catch {
-                            Write-Warning "⚠️ $($app.Name): Failed to export slot '$($slot.Name)'"
+                            Write-Warning "⚠️ $($app.Name): Failed to export slot '$($slot.Name)'. $($_.Exception.Message)"
                         }
                     }
                 } catch {

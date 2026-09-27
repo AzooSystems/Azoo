@@ -62,7 +62,6 @@ function Test-AzooGitHubAttestation {
         }
 
         # Extract the attestation bundle from the GitHub API response
-        $bundle = $response.attestations[0].bundle
         if (-not $response.attestations -or $response.attestations.Count -eq 0) {
             throw "No attestation bundles found for sha256:$fileSum in repo '$OrgAndRepository'."
         }
@@ -84,11 +83,11 @@ function Test-AzooGitHubAttestation {
 
             "CR: " + (
                 ($bytes | Where-Object { $_ -eq 13 }).Count
-            )
+            ) | Write-Debug
 
             "LF(``n): " + (
                 ($bytes | Where-Object { $_ -eq 10 }).Count
-            )
+            ) | Write-Debug
         }
 
         Write-Host "Verifying attestation for file '$Path' with GitHub repository '$OrgAndRepository' with gh command..."

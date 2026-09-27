@@ -1,4 +1,19 @@
+<#
+.SYNOPSIS
+Verifies a file's GitHub attestation bundle.
 
+.PARAMETER Path
+Path to the file whose GitHub attestation should be verified.
+
+.PARAMETER OrgAndRepository
+GitHub repository in owner/name format that contains the attestation.
+
+.PARAMETER VerboseTooling
+Enables verbose and debug output from the GitHub attestation API request tooling.
+
+.PARAMETER DebugGhCli
+Sets GH_DEBUG=1 before invoking gh attestation verify to enable GitHub CLI debug output.
+#>
 function Test-AzooGitHubAttestation {
     [CmdletBinding(SupportsShouldProcess)]
     param(

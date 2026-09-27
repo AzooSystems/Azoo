@@ -6,19 +6,18 @@ on:
       - "v**"
 
 permissions:
-  contents: read
+  contents: write
   packages: write
   id-token: write
   attestations: write
 
 jobs:
-  publish:
+  version:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
       - name: Extract version from tag
         id: version
         shell: pwsh
@@ -26,108 +25,24 @@ jobs:
           $version = "${{ github.ref_name }}".TrimStart("v")
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      - name: Build module artifact (staging)
-        shell: pwsh
-        run: |
-          $tag = "${{ github.ref_name }}".TrimStart("v")
+  publish:
+    needs: version
+    # Immutable releases but copilot will moan and whine about tag usage
+    uses: AzooSystems/AzooBuilder/.github/workflows/build-and-release-ps-module.yml@5f872139e68612793e04f7b561ef6c37a23209ff # 26.09.27
+    with:
+      version: ${{ needs.version.outputs.version }}
+      moduleName: Azoo
+      modulePath: ./src/Azoo
+      publishToGitHubPackagesNuGetFeed: true
+      gitHubPackagesNuGetFeedOrganizationName: AzooSystems
+      gitHubPackagesNuGetFeedRepositoryName: GitHub
+      gitHubPackagesNuGetFeedUri: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+      publishToGitHubContainerRegistry: true
+      publishToPowerShellGallery: true
+      publishToGitHubRelease: true
 
-          # -----------------------------
-          # Parse SemVer using built-in .NET type (preferred over regex)
-          # -----------------------------
-          try {
-              $semver = [System.Management.Automation.SemanticVersion]::Parse($tag)
-          }
-          catch {
-              throw "Invalid SemVer tag: $tag"
-          }
-
-          $major = $semver.Major
-          $minor = $semver.Minor
-          $patch = $semver.Patch
-
-          # IMPORTANT: store prerelease state
-          $isPrerelease = -not [string]::IsNullOrWhiteSpace($semver.PreReleaseLabel)
-          $prereleaseLabel = $semver.PreReleaseLabel
-
-          $moduleVersion = "$major.$minor.$patch"
-
-          "IS_PRERELEASE=$isPrerelease" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "PRERELEASE_LABEL=$prereleaseLabel" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-          # Clean staging folder
-          Remove-Item ./dist -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Path ./dist/Azoo -Force | Out-Null
-
-          # Copy source into staging
-          Copy-Item ./src/Azoo/* ./dist/Azoo -Recurse
-
-          $manifestPath = "./dist/Azoo/Azoo.psd1"
-          
-          $params = @{
-              Path          = $manifestPath
-              ModuleVersion = $moduleVersion
-          }
-
-          if ($isPrerelease) {
-              $params.Prerelease = $prereleaseLabel
-          }
-
-          # Update module manifest
-          Update-PsModuleManifest @params
-
-      - name: Package module (.nupkg)
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Path ./artifacts -Force | Out-Null
-          $packagePath = Compress-PSResource -PassThru `
-            -Path ./dist/Azoo `
-            -DestinationPath "./artifacts"
-
-          echo "PACKAGE_PATH=$packagePath" | Out-File -FilePath $env:GITHUB_ENV -Append
-      
-      - name: Generate artifact attestation (stable only)
-        if: env.IS_PRERELEASE == 'False'
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
-        with:
-          subject-path: ${{ env.PACKAGE_PATH }}
-
-      - name: Setup repository
-        shell: pwsh
-        run: |
-          Register-PSResourceRepository `
-            -Name "GitHub" `
-            -Uri "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" `
-            -Trusted 
-
-      - name: Publish to GitHub Packages
-        shell: pwsh
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Publish-PSResource and Register-PSResourceRepository uses different credential parameter types
-          $secure = ConvertTo-SecureString $env:GITHUB_TOKEN -AsPlainText -Force
-          $cred = [System.Management.Automation.PSCredential]::new(
-            "AzooSystems",
-            $secure
-          )
-          
-          Publish-PSResource `
-            -NupkgPath $env:PACKAGE_PATH `
-            -Repository GitHub `
-            -Credential $cred `
-            -SkipDependenciesCheck
-
-      # TODO: release into Github container registry feed when there is a proper support
-      # * Github nuget feed requires authentication token even when set to public
-      # * PsResourceGet's container registry support is Azure Container Registry
-
-      - name: Publish to PowerShell Gallery
-        shell: pwsh
-        env:
-          GALLERY_API_KEY: ${{ secrets.GALLERY_API_KEY }}
-        run: |
-          Publish-PSResource `
-            -NupkgPath $env:PACKAGE_PATH `
-            -Repository PSGallery `
-            -ApiKey $env:GALLERY_API_KEY `
-            -SkipDependenciesCheck
+    secrets:
+      githubToken: ${{ secrets.GITHUB_TOKEN }}
+      galleryApiKey: ${{ secrets.GALLERY_API_KEY }}
+      gitHubContainerRegistryToken: ${{ secrets.GITHUB_TOKEN }}
+      gitHubReleaseToken: ${{ secrets.GITHUB_TOKEN }}

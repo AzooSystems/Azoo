@@ -42,7 +42,7 @@ jobs:
       publishToGitHubRelease: true
 
     secrets:
-      githubToken: ${{ secrets.GITHUB_TOKEN }}
+      gitHubPackagesNuGetFeedToken: ${{ secrets.GITHUB_TOKEN }}
       galleryApiKey: ${{ secrets.GALLERY_API_KEY }}
       gitHubContainerRegistryToken: ${{ secrets.GITHUB_TOKEN }}
       gitHubReleaseToken: ${{ secrets.GITHUB_TOKEN }}

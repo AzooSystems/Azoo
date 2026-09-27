@@ -27,8 +27,8 @@ jobs:
 
   publish:
     needs: version
-    # Immutable release
-    uses: AzooSystems/AzooBuilder/.github/workflows/build-and-release-ps-module.yml@26.09.27
+    # Immutable releases but copilot will moan and whine about tag usage
+    uses: AzooSystems/AzooBuilder/.github/workflows/build-and-release-ps-module.yml@5f872139e68612793e04f7b561ef6c37a23209ff # 26.09.27
     with:
       version: ${{ needs.version.outputs.version }}
       moduleName: Azoo

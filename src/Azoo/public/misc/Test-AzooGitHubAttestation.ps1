@@ -32,6 +32,7 @@ function Test-AzooGitHubAttestation {
         [switch]$DebugGhCli
     )
 
+    # TODO: Not PS 5.1 compatible, relies on newer PowerShell features
     $toolingDebugPreference = $VerboseTooling.IsPresent ? $true : $false
     $toolingVerbosePreference = $VerboseTooling.IsPresent ? $true : $false
 
@@ -91,6 +92,7 @@ function Test-AzooGitHubAttestation {
         }
 
         Write-Host "Verifying attestation for file '$Path' with GitHub repository '$OrgAndRepository' with gh command..."
+        # TODO: consider unsing Start-Process. Added on PowerShell 7.4 to avoid process environment pollutions
         $Env:GH_NO_UPDATE_NOTIFIER = "1"
         $Env:GH_NO_EXTENSION_UPDATE_NOTIFIER = "1"
         if ($DebugGhCli.IsPresent) {
